@@ -3,15 +3,6 @@ name: build-release
 on:
   release:
     types: [published]
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      tag_name:
-        description: 'Image tag (e.g. v1.0.0 or preview)'
-        required: false
-        default: manual-build
 
 concurrency:
   group: build-release-${{ github.ref }}
@@ -61,10 +52,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-            type=sha,prefix=main-,enable=${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-            type=raw,value=${{ github.event.inputs.tag_name }},enable=${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag_name != 'manual-build' }}
+            type=raw,value=latest
 
       - name: Build and push image
         uses: docker/build-push-action@v6
