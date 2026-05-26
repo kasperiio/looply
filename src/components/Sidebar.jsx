@@ -38,6 +38,7 @@ export default function Sidebar({
       <div className="flex items-center gap-2 pt-1">
         <div className="flex-1 min-w-0">
           <h1 className="text-white font-bold text-xl tracking-tight leading-none">Looply</h1>
+          <p className="text-[10px] text-gray-500 mt-1">v{import.meta.env.VITE_APP_VERSION}</p>
         </div>
 
         <a
