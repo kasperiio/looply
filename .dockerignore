@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-ssr
+.git
+.gitignore
+*.md
+.env
+.env.*
+*.log
+response.json
+.vscode
+.idea
+.DS_Store
+coverage
+agent-transcripts
+mcps
+terminals

@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #030712;
+  color: #f9fafb;
+}
+
+/* Leaflet overrides */
+.leaflet-container {
+  background: #030712 !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(3, 7, 18, 0.7) !important;
+  color: #6b7280 !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #9ca3af !important;
+}
+
+.leaflet-control-zoom a {
+  background: #111827 !important;
+  color: #d1d5db !important;
+  border-color: #374151 !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: #1f2937 !important;
+  color: #a3e635 !important;
+}
+
+/* Range slider accent */
+input[type="range"] {
+  accent-color: #a3e635;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #111827;
+}
+::-webkit-scrollbar-thumb {
+  background: #374151;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a3e635;
+}

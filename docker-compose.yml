@@ -1,0 +1,9 @@
+services:
+  looply:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: looply
+    ports:
+      - "${LOOPLY_PORT:-8080}:8080"
+    restart: unless-stopped
