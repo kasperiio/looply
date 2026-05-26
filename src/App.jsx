@@ -7,6 +7,7 @@ import LoadingOverlay from './components/LoadingOverlay';
 import MapStatusToast from './components/MapStatusToast';
 import SearchAreaBanner from './components/SearchAreaBanner';
 import MapEmptyHint from './components/MapEmptyHint';
+import MapInteractionHints from './components/MapInteractionHints';
 import { haversineKm } from './utils/circularRoute';
 import { reverseGeocode } from './utils/nominatim';
 import { downloadGpx } from './utils/gpxExport';
@@ -32,6 +33,7 @@ export default function App() {
   const [surfacePref, setSurfacePref] = useState(init.surfacePref);
   const [wellLit, setWellLit] = useState(init.wellLit);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showMapHints, setShowMapHints] = useState(true);
   const [elevationBias, setElevationBias] = useState(init.elevationBias);
 
   const [routes, setRoutes] = useState([]);
@@ -255,6 +257,7 @@ export default function App() {
             onSearchInArea={handleSearchInArea}
             onClearArea={handleClearArea}
           />
+          {showMapHints && <MapInteractionHints onDismiss={() => setShowMapHints(false)} />}
 
           {loading && <LoadingOverlay />}
           {!currentRoute && !loading && <MapEmptyHint hasStartPoint={!!startPoint} />}

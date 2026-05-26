@@ -42,7 +42,7 @@ export default function Sidebar({
         </div>
 
         <a
-          href="https://github.com/kasperiio"
+          href="https://github.com/kasperiio/looply"
           target="_blank"
           rel="noopener noreferrer"
           className="p-1.5 rounded-lg text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
