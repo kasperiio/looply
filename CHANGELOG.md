@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/kasperiio/looply/compare/v1.1.0...v1.2.0) (2026-05-26)
+
+
+### Features
+
+* **seo:** add google adsense ads.txt entry ([ae20ad6](https://github.com/kasperiio/looply/commit/ae20ad6fa1fc17d9a09c55cfae6aff025d100e4c))
+
 ## [1.1.0](https://github.com/kasperiio/looply/compare/v1.0.0...v1.1.0) (2026-05-26)
 
 
