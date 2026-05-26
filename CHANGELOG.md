@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/kasperiio/looply/compare/v1.0.0...v1.1.0) (2026-05-26)
+
+
+### Features
+
+* map overlay hints ([5dddcf8](https://github.com/kasperiio/looply/commit/5dddcf8ef29da6aef5ef7c5f2bda92a780a80e1b))
+
 ## 1.0.0 (2026-05-26)
 
 
