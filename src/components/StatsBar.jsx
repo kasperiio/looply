@@ -1,11 +1,11 @@
-import { Route, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Route, TrendingUp, ChevronLeft, ChevronRight, Download, Trash2, Layers } from 'lucide-react';
 
-function StatCard({ icon: Icon, label, value, accent }) {
+function StatCard({ icon: Icon, label, value, accent, className = '' }) {
   return (
-    <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2 flex-1 min-w-0">
+    <div className={`flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-2 sm:px-3 py-2 flex-1 min-w-0 ${className}`}>
       <Icon
         size={14}
-        className={accent ? 'text-lime-400 shrink-0' : 'text-gray-500 shrink-0'}
+        className={`hidden sm:block shrink-0 ${accent ? 'text-lime-400' : 'text-gray-500'}`}
       />
       <div className="min-w-0">
         <p className="text-gray-500 text-xs leading-none mb-0.5">{label}</p>
@@ -49,11 +49,21 @@ function RouteNav({ routeIdx, routeCount, onPrev, onNext }) {
   );
 }
 
+function surfaceSummary(surface) {
+  if (!surface) return null;
+  const paved = Math.round((surface.paved ?? 0) * 100);
+  const unpaved = Math.round((surface.unpaved ?? 0) * 100);
+  if (paved === 0 && unpaved === 0) return null;
+  return paved >= unpaved ? `${paved}% paved` : `${unpaved}% unpaved`;
+}
+
 export default function StatsBar({
-  distance, ascent,
+  distance, ascent, surface,
   routeIdx, routeCount, onPrev, onNext,
+  onExportGpx, onClear,
 }) {
   const hasData = distance > 0;
+  const surfaceText = surfaceSummary(surface);
 
   return (
     <div className="space-y-1.5">
@@ -69,12 +79,41 @@ export default function StatsBar({
           label="Ascent"
           value={hasData ? `${Math.round(ascent)} m` : '—'}
         />
+        {surfaceText && (
+          <StatCard
+            icon={Layers}
+            label="Surface"
+            value={surfaceText}
+            className="hidden sm:flex"
+          />
+        )}
         <RouteNav
           routeIdx={routeIdx}
           routeCount={routeCount}
           onPrev={onPrev}
           onNext={onNext}
         />
+        <div className="flex items-stretch gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={onExportGpx}
+            title="Download GPX of this route"
+            aria-label="Download GPX of this route"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:border-lime-400/50 hover:text-lime-300 text-xs font-medium transition-all"
+          >
+            <Download size={13} />
+            <span className="hidden md:inline">GPX</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            title="Clear route"
+            aria-label="Clear route"
+            className="flex items-center px-2.5 sm:px-3 rounded-lg border border-gray-800 bg-gray-900 text-gray-500 hover:border-red-400/50 hover:text-red-300 text-xs font-medium transition-all"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
       </div>
     </div>
   );

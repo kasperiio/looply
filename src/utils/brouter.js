@@ -1,2 +1,2 @@
 /** Re-export BRouter client API for existing imports */
-export { fetchRoute, isIslandError } from './brouter/client.js';
+export { fetchRoute, isIslandError, warmupProfile } from './brouter/client.js';

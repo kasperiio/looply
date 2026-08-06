@@ -10,6 +10,7 @@ export async function recalcRoute({
   startPoint,
   waypointsToUse,
   mode,
+  bikeType,
   surfacePref,
   wellLit,
   elevationBias,
@@ -28,7 +29,7 @@ export async function recalcRoute({
   ];
 
   try {
-    const route = await fetchRoute({ waypoints, mode, surfacePref, wellLit, elevationBias });
+    const route = await fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias });
     return {
       route: {
         ...route,

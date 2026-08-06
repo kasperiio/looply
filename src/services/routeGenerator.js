@@ -24,6 +24,35 @@ const RETRY_OFFSETS = [0, 45, 90, 135, 180, 225, 270, 315];
 // concurrency at ~6 requests — quick without hammering the public server.
 const OFFSET_WORKERS_PER_BEARING = 2;
 
+// BRouter responses are deterministic for identical requests, so cached
+// results survive across generations — regenerating after tweaking one
+// setting only pays for the requests that actually changed.
+const ROUTE_CACHE_MAX = 300;
+const sharedRouteCache = new Map();
+
+function cachedFetchRoute(cacheKey, factory) {
+  let promise = sharedRouteCache.get(cacheKey);
+  if (promise) {
+    // refresh recency so hot entries survive eviction
+    sharedRouteCache.delete(cacheKey);
+    sharedRouteCache.set(cacheKey, promise);
+    return promise;
+  }
+  promise = factory();
+  promise.catch(() => sharedRouteCache.delete(cacheKey));
+  sharedRouteCache.set(cacheKey, promise);
+  if (sharedRouteCache.size > ROUTE_CACHE_MAX) {
+    sharedRouteCache.delete(sharedRouteCache.keys().next().value);
+  }
+  return promise;
+}
+
+/** Surface behavior implied by the cycling discipline. */
+function effectiveSurface(mode, bikeType, surfacePref) {
+  if (mode !== 'cycling') return surfacePref;
+  return bikeType === 'road' ? 'paved' : 'trail';
+}
+
 /**
  * Generate ranked route alternatives for a circular loop.
  * @returns {Promise<{ routes: object[] } | { routes: [], error: string }>}
@@ -32,6 +61,7 @@ export async function generateRoutes({
   startPoint,
   distance,
   mode,
+  bikeType = 'road',
   surfacePref,
   wellLit,
   elevationBias,
@@ -47,7 +77,8 @@ export async function generateRoutes({
 
   const { lat, lng } = startPoint;
   const toleranceKm = Math.max(1, distance * 0.1);
-  const routeRequestCache = new Map();
+  const effectiveSurfacePref = effectiveSurface(mode, bikeType, surfacePref);
+  const modeKey = mode === 'cycling' ? `cycling:${bikeType}` : mode;
   const areaTarget = isFinitePoint(preferredArea) ? preferredArea : null;
   const preferredBearing = areaTarget
     ? bearingDeg([lat, lng], [areaTarget.lat, areaTarget.lng])
@@ -56,13 +87,14 @@ export async function generateRoutes({
     ? [0, 120, 240]
     : [preferredBearing - 26, preferredBearing, preferredBearing + 26];
 
-  const trailPoints = surfacePref === 'trail'
+  const trailPoints = effectiveSurfacePref === 'trail'
     ? await findNearbyTrailPoints(lat, lng, Math.max(distance * 1.5, 2))
     : [];
 
   async function tryBearing(base) {
     const candidates = [];
     const seen = new Set();
+    const pendingAlternatives = [];
     let closeMatches = 0;
     let nextOffsetIdx = 0;
 
@@ -78,10 +110,10 @@ export async function generateRoutes({
       let bestForOffset = null;
 
       for (let pass = 0; pass < 3; pass++) {
-        const snapRadiusKm = circleRadius(calibratedTargetKm, surfacePref) * 0.6;
-        const routeRadiusKm = circleRadius(calibratedTargetKm, surfacePref);
+        const snapRadiusKm = circleRadius(calibratedTargetKm, effectiveSurfacePref) * 0.6;
+        const routeRadiusKm = circleRadius(calibratedTargetKm, effectiveSurfacePref);
 
-        let wps = buildCircularWaypoints(lat, lng, calibratedTargetKm, base + offset, surfacePref);
+        let wps = buildCircularWaypoints(lat, lng, calibratedTargetKm, base + offset, effectiveSurfacePref);
         if (areaTarget) {
           const desiredDistKm = haversineKm([lat, lng], [areaTarget.lat, areaTarget.lng]);
           // Start sits on the ring, so loop points lie 0…2R from it; keep the
@@ -107,13 +139,10 @@ export async function generateRoutes({
         const waypoints = [[lat, lng], ...wps, [lat, lng]];
 
         const fetchCandidate = async (alternativeidx) => {
-          const cacheKey = requestKey(waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx);
-          let routePromise = routeRequestCache.get(cacheKey);
-          if (!routePromise) {
-            routePromise = fetchRoute({ waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx });
-            routeRequestCache.set(cacheKey, routePromise);
-          }
-          const route = await routePromise;
+          const cacheKey = requestKey(waypoints, modeKey, surfacePref, wellLit, elevationBias, alternativeidx);
+          const route = await cachedFetchRoute(cacheKey, () =>
+            fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, alternativeidx })
+          );
           return { ...route, waypoints: scatterWaypointsAlongRoute(route.points, 0.1) };
         };
 
@@ -134,17 +163,19 @@ export async function generateRoutes({
           if (errorKm <= toleranceKm) {
             closeMatches += 1;
             // These waypoints hit the target — BRouter's first alternative
-            // for them is a cheap extra source of variety.
-            try {
-              const alt = await fetchCandidate(1);
-              const altSig = routeSignature(alt);
-              if (!seen.has(altSig)) {
-                seen.add(altSig);
-                candidates.push(alt);
-              }
-            } catch {
-              // alternatives are optional
-            }
+            // for them is a cheap extra source of variety. Collected off the
+            // critical path so the worker moves on immediately.
+            pendingAlternatives.push(
+              fetchCandidate(1)
+                .then((alt) => {
+                  const altSig = routeSignature(alt);
+                  if (!seen.has(altSig)) {
+                    seen.add(altSig);
+                    candidates.push(alt);
+                  }
+                })
+                .catch(() => {})
+            );
             break;
           }
 
@@ -178,6 +209,7 @@ export async function generateRoutes({
     await Promise.all(
       Array.from({ length: OFFSET_WORKERS_PER_BEARING }, () => worker())
     );
+    await Promise.all(pendingAlternatives);
 
     return candidates;
   }
@@ -191,7 +223,7 @@ export async function generateRoutes({
 
   const routes = sortRoutesByPreferences(Array.from(deduped.values()), {
     targetDistanceKm: distance,
-    surfacePref,
+    surfacePref: effectiveSurfacePref,
     wellLit,
     elevationBias,
     areaTarget,

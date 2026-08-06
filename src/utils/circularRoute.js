@@ -131,25 +131,35 @@ export const haversineKm = haversineKmGeo;
  * @param {number} lng
  * @param {number} radiusKm  Search radius (capped at 12 km internally).
  */
+// Session cache — trail networks don't change between generations, and the
+// Overpass round trip is often the slowest part of a trail-mode generation.
+const trailPointsCache = new Map();
+
 export async function findNearbyTrailPoints(lat, lng, radiusKm) {
   const r = Math.round(Math.min(radiusKm, 12) * 1000);
+  const cacheKey = `${lat.toFixed(3)}|${lng.toFixed(3)}|${r}`;
+  const cached = trailPointsCache.get(cacheKey);
+  if (cached) return cached;
+
   const query = [
-    '[out:json][timeout:20];',
+    '[out:json][timeout:10];',
     '(',
     `  way["highway"~"^(track|path|bridleway)$"](around:${r},${lat},${lng});`,
     ');',
     'node(w);',
-    'out 200;',
+    'out skel qt 300;',
   ].join('');
 
   try {
     const res = await fetch(OVERPASS_URL, { method: 'POST', body: query });
     if (!res.ok) return [];
     const { elements = [] } = await res.json();
-    return elements
+    const points = elements
       .filter(el => el.type === 'node' && el.lat != null && el.lon != null)
       .map(el => [el.lat, el.lon])
       .sort((a, b) => haversineKm(a, [lat, lng]) - haversineKm(b, [lat, lng]));
+    trailPointsCache.set(cacheKey, points);
+    return points;
   } catch {
     return []; // network failure, rate-limit, timeout — silently fall back
   }
