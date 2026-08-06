@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/kasperiio/looply/compare/v1.3.0...v1.4.0) (2026-08-06)
+
+
+### Features
+
+* **ux:** cycling disciplines, route actions in stats bar, contextual tips, faster generation ([e55b1a3](https://github.com/kasperiio/looply/commit/e55b1a3e1cae0d9539d0af8c68aaca5fd737532d))
+
+
+### Bug Fixes
+
+* **app:** keep alternatives on manual route edit; ci: exponentially faster release builds ([dc33780](https://github.com/kasperiio/looply/commit/dc337802444ab383c6dd6b74f3f5ae9c5abe1a03))
+* **app:** keep route alternatives when editing a route manually ([d23c1c4](https://github.com/kasperiio/looply/commit/d23c1c4c3808e5bc576a8f65ddbe7fed3408f0f9))
+
 ## [1.3.0](https://github.com/kasperiio/looply/compare/v1.2.0...v1.3.0) (2026-08-06)
 
 
