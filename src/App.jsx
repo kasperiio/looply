@@ -150,6 +150,7 @@ export default function App() {
     } else {
       setRoutes(result.routes);
       setRouteIdx(0);
+      setSidebarOpen(false);
     }
     setLoading(false);
   }, [startPoint, areaPoint, distance, routingParams]);

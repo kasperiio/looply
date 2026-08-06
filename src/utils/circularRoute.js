@@ -1,23 +1,26 @@
 /**
  * Circular route waypoint builder — adaptive polygon approach.
  *
- * WHY NOT A TRIANGLE?
- * With n=3 waypoints, BRouter routes the path from V1→V2 via the road that
- * passes closest to the center (start point), because the straight-line
- * V1→V2 chord slices through the interior. This turns the intended triangle
- * into a spoke pattern — much shorter than the target distance.
+ * GEOMETRY — start ON the ring, not at the center:
+ * The circle's center is offset from the start point by the circumradius R
+ * along the requested bearing, so the start is one vertex of a regular n-gon
+ * inscribed in that circle. The route follows adjacent chords all the way
+ * around: start → v1 → … → v(n−1) → start. Placing the start at the center
+ * instead (the previous approach) produces a "lollipop" — two radial spokes
+ * that BRouter tends to route along the same streets, so the loop doubles
+ * back on itself near the start.
  *
- * FIX — n=5 (pentagon) for most distances:
- * Adjacent pentagon vertices are only 72° apart. Their connecting chord
- * never cuts through the center, so BRouter has to actually traverse the
- * outer arc. This produces genuine circular routes with far less variance.
+ * WHY n ≥ 4 VERTICES?
+ * With few vertices the chord between two of them can slice through the
+ * interior, letting BRouter shortcut across the middle. Adjacent vertices of
+ * a pentagon are only 72° apart, so every chord hugs the outer arc.
  *
  * RADIUS CALIBRATION:
  * We account for the road-network "detour factor" (road distance ÷
  * straight-line distance): ~1.3 for paved roads, ~1.5 for trails.
- * Route Euclidean length = 2R × (1 + (n−1) × sin(π/n))
- * Setting road_distance ≈ detour × Euclidean = targetKm gives:
- *   R = targetKm / (detour × 2 × (1 + (n−1) × sin(π/n)))
+ * The n-gon perimeter is n × 2R × sin(π/n). Setting
+ * road_distance ≈ detour × perimeter = targetKm gives:
+ *   R = targetKm / (detour × n × 2 × sin(π/n))
  */
 
 import { haversineKm as haversineKmGeo } from './geo.js';
@@ -72,30 +75,30 @@ export function pointAlongBearing(lat, lng, bearing, distanceKm) {
 }
 
 /**
- * Build n waypoints on a regular polygon around (lat, lng), calibrated so
- * that BRouter's actual road distance ≈ targetKm.
+ * Build the n−1 intermediate waypoints of a regular n-gon loop that starts
+ * and ends at (lat, lng), calibrated so BRouter's road distance ≈ targetKm.
+ * The circle's center sits at distance R from the start along `bearing`, so
+ * the loop extends in that direction; the start itself is the n-th vertex.
  *
  * @param {number} lat
  * @param {number} lng
  * @param {number} targetKm     - desired total route distance
- * @param {number} bearing      - rotation offset in degrees (0 = first vertex north)
+ * @param {number} bearing      - direction from start to loop center, degrees
  * @param {string} surfacePref  - 'paved' | 'any' | 'trail'
  */
 export function buildCircularWaypoints(lat, lng, targetKm, bearing = 0, surfacePref = 'any') {
-  const n  = numVertices(targetKm);
-  const df = ROAD_DETOUR[surfacePref] ?? 1.35;
+  const n = numVertices(targetKm);
+  const R = circleRadius(targetKm, surfacePref);
 
-  // Euclidean factor for n-gon route (start→v0→v1→…→v(n-1)→start):
-  //   = 2R + (n−1)×2R×sin(π/n) = 2R×(1 + (n−1)×sin(π/n))
-  const euclideanFactor = 2 * (1 + (n - 1) * Math.sin(Math.PI / n));
-  const R = targetKm / (df * euclideanFactor);
+  const [cLat, cLng] = pointAlongBearing(lat, lng, bearing, R);
+  // Seen from the center, the start sits at the opposite bearing; the other
+  // vertices follow at equal angular steps around the circle.
+  const startAngle = ((bearing + 180) * Math.PI) / 180;
+  const step = (2 * Math.PI) / n;
 
-  const step   = (2 * Math.PI) / n;
-  const offset = (bearing  * Math.PI) / 180;
-
-  return Array.from({ length: n }, (_, i) => {
-    const angle = offset + i * step;
-    return offsetPoint(lat, lng, R * Math.sin(angle), R * Math.cos(angle));
+  return Array.from({ length: n - 1 }, (_, i) => {
+    const angle = startAngle + (i + 1) * step;
+    return offsetPoint(cLat, cLng, R * Math.sin(angle), R * Math.cos(angle));
   });
 }
 
@@ -106,7 +109,7 @@ export function buildCircularWaypoints(lat, lng, targetKm, bearing = 0, surfaceP
 export function circleRadius(targetKm, surfacePref = 'any') {
   const n  = numVertices(targetKm);
   const df = ROAD_DETOUR[surfacePref] ?? 1.35;
-  return targetKm / (df * 2 * (1 + (n - 1) * Math.sin(Math.PI / n)));
+  return targetKm / (df * n * 2 * Math.sin(Math.PI / n));
 }
 
 /** Haversine distance in km between two [lat, lng] points. */

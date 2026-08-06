@@ -20,6 +20,9 @@ const MAX_ROUTE_RESULTS = 10;
 const TARGET_CANDIDATES_PER_BEARING = 4;
 const TARGET_CLOSE_MATCHES_PER_BEARING = 2;
 const RETRY_OFFSETS = [0, 45, 90, 135, 180, 225, 270, 315];
+// Concurrent offset chains per bearing. With 3 bearings this caps global
+// concurrency at ~6 requests — quick without hammering the public server.
+const OFFSET_WORKERS_PER_BEARING = 2;
 
 /**
  * Generate ranked route alternatives for a circular loop.
@@ -61,8 +64,16 @@ export async function generateRoutes({
     const candidates = [];
     const seen = new Set();
     let closeMatches = 0;
+    let nextOffsetIdx = 0;
 
-    for (const offset of RETRY_OFFSETS) {
+    const enoughResults = () =>
+      candidates.length >= TARGET_CANDIDATES_PER_BEARING &&
+      closeMatches >= TARGET_CLOSE_MATCHES_PER_BEARING;
+
+    // One offset's calibration chain is inherently serial (each pass uses
+    // the previous pass's measured distance), but separate offsets are
+    // independent — run them through a small worker pool.
+    async function runOffset(offset) {
       let calibratedTargetKm = distance;
       let bestForOffset = null;
 
@@ -73,7 +84,9 @@ export async function generateRoutes({
         let wps = buildCircularWaypoints(lat, lng, calibratedTargetKm, base + offset, surfacePref);
         if (areaTarget) {
           const desiredDistKm = haversineKm([lat, lng], [areaTarget.lat, areaTarget.lng]);
-          const biasedDistKm = Math.max(routeRadiusKm * 0.75, Math.min(routeRadiusKm * 1.35, desiredDistKm));
+          // Start sits on the ring, so loop points lie 0…2R from it; keep the
+          // biased vertex inside that band or the loop degenerates.
+          const biasedDistKm = Math.max(routeRadiusKm * 0.6, Math.min(routeRadiusKm * 1.9, desiredDistKm));
           const biasedPoint = pointAlongBearing(lat, lng, preferredBearing, biasedDistKm);
 
           let closestIdx = 0;
@@ -92,19 +105,20 @@ export async function generateRoutes({
         }
 
         const waypoints = [[lat, lng], ...wps, [lat, lng]];
-        const cacheKey = requestKey(waypoints, mode, surfacePref, wellLit, elevationBias);
 
-        try {
+        const fetchCandidate = async (alternativeidx) => {
+          const cacheKey = requestKey(waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx);
           let routePromise = routeRequestCache.get(cacheKey);
           if (!routePromise) {
-            routePromise = fetchRoute({ waypoints, mode, surfacePref, wellLit, elevationBias });
+            routePromise = fetchRoute({ waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx });
             routeRequestCache.set(cacheKey, routePromise);
           }
           const route = await routePromise;
-          const routeWithWaypoints = {
-            ...route,
-            waypoints: scatterWaypointsAlongRoute(route.points, 0.1),
-          };
+          return { ...route, waypoints: scatterWaypointsAlongRoute(route.points, 0.1) };
+        };
+
+        try {
+          const routeWithWaypoints = await fetchCandidate(0);
           const errorKm = Math.abs(routeWithWaypoints.distance - distance);
           const sig = routeSignature(routeWithWaypoints);
 
@@ -119,10 +133,22 @@ export async function generateRoutes({
 
           if (errorKm <= toleranceKm) {
             closeMatches += 1;
+            // These waypoints hit the target — BRouter's first alternative
+            // for them is a cheap extra source of variety.
+            try {
+              const alt = await fetchCandidate(1);
+              const altSig = routeSignature(alt);
+              if (!seen.has(altSig)) {
+                seen.add(altSig);
+                candidates.push(alt);
+              }
+            } catch {
+              // alternatives are optional
+            }
             break;
           }
 
-          const ratio = distance / Math.max(route.distance, 1);
+          const ratio = distance / Math.max(routeWithWaypoints.distance, 1);
           calibratedTargetKm = Math.max(
             distance * 0.6,
             Math.min(distance * 1.9, calibratedTargetKm * ratio)
@@ -140,14 +166,18 @@ export async function generateRoutes({
           candidates.push(bestForOffset);
         }
       }
+    }
 
-      if (
-        candidates.length >= TARGET_CANDIDATES_PER_BEARING &&
-        closeMatches >= TARGET_CLOSE_MATCHES_PER_BEARING
-      ) {
-        break;
+    async function worker() {
+      while (!enoughResults() && nextOffsetIdx < RETRY_OFFSETS.length) {
+        const offset = RETRY_OFFSETS[nextOffsetIdx++];
+        await runOffset(offset);
       }
     }
+
+    await Promise.all(
+      Array.from({ length: OFFSET_WORKERS_PER_BEARING }, () => worker())
+    );
 
     return candidates;
   }

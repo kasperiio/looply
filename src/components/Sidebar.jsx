@@ -140,7 +140,7 @@ export default function Sidebar({
           icon={Sun}
           checked={wellLit}
           onChange={onLitToggle}
-          description="Prefer streets with lit=yes (avoids trails)"
+          description="Prefer lit streets & paths (OSM lit=yes)"
         />
       </div>
 
