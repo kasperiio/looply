@@ -8,7 +8,7 @@ import {
   snapToTrails,
 } from '../utils/circularRoute.js';
 import { fetchRoute, isIslandError } from '../utils/brouter.js';
-import { scatterWaypointsAlongRoute } from '../utils/routeEditing.js';
+import { withEditableWaypoints } from '../utils/routeEditing.js';
 import {
   requestKey,
   routeSignature,
@@ -143,7 +143,7 @@ export async function generateRoutes({
           const route = await cachedFetchRoute(cacheKey, () =>
             fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, alternativeidx })
           );
-          return { ...route, waypoints: scatterWaypointsAlongRoute(route.points, 0.1) };
+          return withEditableWaypoints(route);
         };
 
         try {

@@ -129,11 +129,12 @@ export default function App() {
     if (result.error) {
       setError(result.error);
     } else {
-      setRoutes([result.route]);
-      setRouteIdx(0);
+      // Edit the current alternative in place — the other candidates and the
+      // route pager stay available.
+      setRoutes((prev) => prev.map((r, i) => (i === routeIdx ? result.route : r)));
     }
     setLoading(false);
-  }, [startPoint, routingParams]);
+  }, [startPoint, routingParams, routeIdx]);
 
   const handleWaypointDrag = useCallback((idx, lat, lng) => {
     if (!currentRoute || !Number.isInteger(idx)) return;
