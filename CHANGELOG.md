@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.3.0](https://github.com/kasperiio/looply/compare/v1.2.0...v1.3.0) (2026-08-06)
+
+
+### Features
+
+* **routing:** enforce sidebar criteria via custom BRouter profiles and overhaul route quality ([c85861c](https://github.com/kasperiio/looply/commit/c85861c4ba7ff7cb02bf756143c3d13e9d8d7dd9))
+* **routing:** enforce sidebar criteria via custom BRouter profiles and overhaul route quality ([6b53596](https://github.com/kasperiio/looply/commit/6b5359662e51cf098dc338f61696f30e8cd83ea6))
+* **routing:** parallelize candidate search and add tunable road aversion ([2fe7b73](https://github.com/kasperiio/looply/commit/2fe7b73a4c3d64e05cf265e8dcd9c687813b3c17))
+* **ux:** cycling disciplines, route actions in stats bar, contextual tips, faster generation ([095bd0c](https://github.com/kasperiio/looply/commit/095bd0c181eb2d1cbc3fe2020f38a1f0c7085ef9))
+* **ux:** cycling disciplines, route actions in stats bar, contextual tips, faster generation ([e55b1a3](https://github.com/kasperiio/looply/commit/e55b1a3e1cae0d9539d0af8c68aaca5fd737532d))
+
 ## [1.2.0](https://github.com/kasperiio/looply/compare/v1.1.0...v1.2.0) (2026-05-26)
 
 
