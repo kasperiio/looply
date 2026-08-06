@@ -17,19 +17,51 @@ export function routeSignature(route) {
   ].join('|');
 }
 
-function buildRanks(values, higherIsBetter = true) {
-  const order = values
-    .map((value, idx) => ({ value, idx }))
-    .sort((a, b) => {
-      const diff = higherIsBetter ? b.value - a.value : a.value - b.value;
-      if (Math.abs(diff) > 1e-9) return diff;
-      return a.idx - b.idx;
-    });
-  const ranks = Array(values.length);
-  order.forEach(({ idx }, pos) => {
-    ranks[idx] = pos + 1;
-  });
-  return ranks;
+const GRID_CELL_KM = 0.025;
+// Cell re-entries closer than this (in cell-sequence steps) are boundary
+// jitter, not backtracking.
+const REVISIT_GAP = 8;
+
+function cellOf([lat, lng]) {
+  const kmPerDegLat = 111.32;
+  const kmPerDegLng = 111.32 * Math.cos((lat * Math.PI) / 180);
+  return `${Math.round((lat * kmPerDegLat) / GRID_CELL_KM)}:${Math.round((lng * kmPerDegLng) / GRID_CELL_KM)}`;
+}
+
+/**
+ * Fraction of the route's length that retraces ground already covered.
+ * Points are hashed to a ~25 m grid; a step whose cell was last visited more
+ * than REVISIT_GAP cells ago counts as backtracking. A clean loop scores ~0,
+ * a pure out-and-back ~0.5.
+ */
+export function backtrackFraction(points) {
+  if (!Array.isArray(points) || points.length < 4) return 0;
+
+  const lastSeen = new Map();
+  let seq = 0;
+  let prevCell = null;
+  let totalKm = 0;
+  let repeatedKm = 0;
+
+  for (let i = 1; i < points.length; i++) {
+    const stepKm = haversineKm(points[i - 1], points[i]);
+    totalKm += stepKm;
+
+    const cell = cellOf(points[i]);
+    if (cell !== prevCell) {
+      seq += 1;
+      prevCell = cell;
+    }
+
+    const prior = lastSeen.get(cell);
+    if (prior != null && seq - prior > REVISIT_GAP) {
+      repeatedKm += stepKm; // leave lastSeen stale so the whole stretch counts
+    } else {
+      lastSeen.set(cell, seq);
+    }
+  }
+
+  return totalKm > 0 ? repeatedKm / totalKm : 0;
 }
 
 function surfaceFitness(route, surfacePref, wellLit) {
@@ -50,6 +82,18 @@ function routeDistanceToPointKm(route, point) {
   return best;
 }
 
+// Ascent per km at (or above) which a route counts as fully "hilly".
+const HILLY_ASCENT_M_PER_KM = 18;
+// Candidates further off target than this fraction are dropped before
+// scoring (unless that would leave fewer than two).
+const DISTANCE_GATE = 0.25;
+
+/**
+ * Score candidates on an absolute 0–1 scale per criterion and sort by the
+ * weighted sum. Unlike rank aggregation, magnitudes matter: a route 4 km off
+ * target can no longer beat one 200 m off because it ranked one place higher
+ * on terrain.
+ */
 export function sortRoutesByPreferences(routes, {
   targetDistanceKm,
   surfacePref,
@@ -60,56 +104,58 @@ export function sortRoutesByPreferences(routes, {
 }) {
   if (routes.length <= 1) return routes;
 
-  const ascentPerKm = routes.map((route) => route.ascent / Math.max(route.distance, 0.1));
-  const minTerrain = Math.min(...ascentPerKm);
-  const maxTerrain = Math.max(...ascentPerKm);
-  const terrainRange = Math.max(maxTerrain - minTerrain, 1e-9);
+  const gateKm = Math.max(1, targetDistanceKm * DISTANCE_GATE);
+  const withinGate = routes.filter(
+    (route) => Math.abs(route.distance - targetDistanceKm) <= gateKm
+  );
+  const pool = withinGate.length >= 2 ? withinGate : routes;
+
   const terrainTarget = elevationBias / 100;
+  const useArea = prioritizeArea && areaTarget != null;
 
-  const terrainFitness = ascentPerKm.map((value) => {
-    const normalized = (value - minTerrain) / terrainRange;
-    return 1 - Math.abs(normalized - terrainTarget);
-  });
-  const surfaceScores = routes.map((route) => surfaceFitness(route, surfacePref, wellLit));
-  const distanceErrors = routes.map((route) => Math.abs(route.distance - targetDistanceKm));
-  const areaDistanceErrors = routes.map((route) =>
-    prioritizeArea && areaTarget ? routeDistanceToPointKm(route, areaTarget) : Infinity);
+  const weights = {
+    distance: 1,
+    loop: 1.2,
+    surface: surfacePref === 'any' && !wellLit ? 0.5 : 1,
+    terrain: 0.6,
+    area: useArea ? 2 : 0,
+  };
 
-  const terrainRanks = buildRanks(terrainFitness, true);
-  const surfaceRanks = buildRanks(surfaceScores, true);
-  const distanceRanks = buildRanks(distanceErrors, false);
-  const areaRanks = prioritizeArea && areaTarget
-    ? buildRanks(areaDistanceErrors, false)
-    : Array(routes.length).fill(1);
+  return pool
+    .map((route) => {
+      const distanceScore =
+        1 - Math.min(1, Math.abs(route.distance - targetDistanceKm) / gateKm);
+      const hilliness = Math.min(
+        1,
+        route.ascent / Math.max(route.distance, 0.1) / HILLY_ASCENT_M_PER_KM
+      );
+      const terrainScore = 1 - Math.abs(hilliness - terrainTarget);
+      const surfaceScore = surfaceFitness(route, surfacePref, wellLit);
+      // 0.5 backtrack (pure out-and-back) → 0; clean loop → 1.
+      const loopScore = 1 - Math.min(1, backtrackFraction(route.points) / 0.5);
+      const areaKm = useArea ? routeDistanceToPointKm(route, areaTarget) : 0;
+      const areaScore = useArea
+        ? 1 - Math.min(1, areaKm / Math.max(targetDistanceKm / 3, 0.5))
+        : 0;
 
-  const surfaceWeight = (surfacePref === 'any' && !wellLit) ? 0.6 : 1;
-  const terrainWeight = 1;
-  const distanceWeight = 0.7;
-  const areaWeight = prioritizeArea && areaTarget ? 2.4 : 0;
-  const totalWeight = surfaceWeight + terrainWeight + distanceWeight + areaWeight;
-
-  return routes
-    .map((route, idx) => ({
-      route,
-      combinedRank:
-        (surfaceRanks[idx] * surfaceWeight +
-         terrainRanks[idx] * terrainWeight +
-         distanceRanks[idx] * distanceWeight +
-         areaRanks[idx] * areaWeight) / totalWeight,
-      distanceError: distanceErrors[idx],
-      areaDistanceError: areaDistanceErrors[idx],
-    }))
-    .sort((a, b) =>
-      a.combinedRank - b.combinedRank ||
-      a.areaDistanceError - b.areaDistanceError ||
-      a.distanceError - b.distanceError
-    )
+      return {
+        route,
+        score:
+          distanceScore * weights.distance +
+          loopScore * weights.loop +
+          surfaceScore * weights.surface +
+          terrainScore * weights.terrain +
+          areaScore * weights.area,
+        distanceError: Math.abs(route.distance - targetDistanceKm),
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.distanceError - b.distanceError)
     .map(({ route }) => route);
 }
 
-export function requestKey(waypoints, mode, surfacePref, wellLit, elevationBias) {
+export function requestKey(waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx = 0) {
   const waypointKey = waypoints
     .map(([lat, lng]) => `${lat.toFixed(6)},${lng.toFixed(6)}`)
     .join('|');
-  return `${waypointKey}__${mode}__${surfacePref}__${wellLit ? '1' : '0'}__${elevationBias}`;
+  return `${waypointKey}__${mode}__${surfacePref}__${wellLit ? '1' : '0'}__${elevationBias}__${alternativeidx}`;
 }

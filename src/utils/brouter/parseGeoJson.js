@@ -14,26 +14,42 @@ function nearestPointIndex(points, lat, lng) {
   return idx;
 }
 
+/**
+ * Remove genuine out-and-back spikes: BRouter routes exactly to each via
+ * point, so an off-road waypoint produces a dead-end detour that reverses
+ * over the same coordinates (…A→B→apex→B→A…). Detect the apex where the
+ * path folds back on itself and cut the symmetric retrace around it.
+ *
+ * Unlike proximity-based pruning, this never amputates legitimate geometry
+ * that merely passes close to itself (parallel paths, tight loop necks).
+ */
 function pruneSpurs(points) {
-  const PROX_KM = 0.030;
-  const MAX_SPUR = 100;
-  const SKIP = 20;
+  const APEX_KM = 0.01; // pts[i−1] ≈ pts[i+1]: the path folds at i
+  const MATCH_KM = 0.02; // outward/return legs must match this closely
 
   let pts = points;
   let changed = true;
 
   while (changed) {
     changed = false;
-    const n = pts.length;
-    outer: for (let i = SKIP; i < n - SKIP; i++) {
-      const limit = Math.min(i + MAX_SPUR, n - SKIP);
-      for (let j = i + 4; j <= limit; j++) {
-        if (haversineKm(pts[i], pts[j]) <= PROX_KM) {
-          pts = [...pts.slice(0, i + 1), ...pts.slice(j)];
-          changed = true;
-          break outer;
-        }
+    for (let i = 1; i < pts.length - 1; i++) {
+      if (haversineKm(pts[i - 1], pts[i + 1]) > APEX_KM) continue;
+
+      let k = 1;
+      while (
+        i - k - 1 >= 0 &&
+        i + k + 1 < pts.length &&
+        haversineKm(pts[i - k - 1], pts[i + k + 1]) <= MATCH_KM
+      ) {
+        k += 1;
       }
+
+      // pts[i−k] ≈ pts[i+k] is the verified junction; keep the outward copy
+      // and drop everything through the returning copy so the path stays
+      // continuous.
+      pts = [...pts.slice(0, i - k + 1), ...pts.slice(i + k + 1)];
+      changed = true;
+      break;
     }
   }
 
