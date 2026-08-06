@@ -26,6 +26,15 @@ export function insertWaypointByRouteOrder(route, newWaypoint) {
   return [...existing.slice(0, insertAt), newWaypoint, ...existing.slice(insertAt)];
 }
 
+/**
+ * Attach draggable edit handles to a routed result. The single source of
+ * truth for shaping BRouter routes into app state — used by both initial
+ * generation and manual-edit recalculation so the two flows can't drift.
+ */
+export function withEditableWaypoints(route) {
+  return { ...route, waypoints: scatterWaypointsAlongRoute(route.points, 0.1) };
+}
+
 export function scatterWaypointsAlongRoute(routePoints, step = 0.1) {
   if (!Array.isArray(routePoints) || routePoints.length < 3) return [];
   const waypoints = [];

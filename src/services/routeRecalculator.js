@@ -1,5 +1,5 @@
 import { fetchRoute } from '../utils/brouter.js';
-import { scatterWaypointsAlongRoute } from '../utils/routeEditing.js';
+import { withEditableWaypoints } from '../utils/routeEditing.js';
 import { isFinitePoint } from '../utils/urlState.js';
 
 /**
@@ -30,12 +30,7 @@ export async function recalcRoute({
 
   try {
     const route = await fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias });
-    return {
-      route: {
-        ...route,
-        waypoints: scatterWaypointsAlongRoute(route.points, 0.1),
-      },
-    };
+    return { route: withEditableWaypoints(route) };
   } catch (e) {
     const msg = e?.message
       ? `Could not update route: ${e.message}`
