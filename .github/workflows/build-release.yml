@@ -28,11 +28,17 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Lint
-        run: npm ci --legacy-peer-deps && npm run lint
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      - name: Lint
+        run: npm run lint
+
+      # Vite output is architecture-independent: build it once natively and
+      # let the Docker step assemble per-arch images with pure COPY layers.
+      # No QEMU, no emulated npm — multi-arch assembly takes seconds.
+      - name: Build
+        run: npm run build
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -58,9 +64,10 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
+          target: prebuilt
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha
