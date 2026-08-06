@@ -12,6 +12,7 @@ import { haversineKm } from './utils/circularRoute';
 import { reverseGeocode } from './utils/nominatim';
 import { downloadGpx } from './utils/gpxExport';
 import { readUrlParams, writeUrlParams } from './utils/urlState';
+import { warmupProfile } from './utils/brouter';
 import { insertWaypointByRouteOrder } from './utils/routeEditing';
 import { generateRoutes } from './services/routeGenerator';
 import { recalcRoute } from './services/routeRecalculator';
@@ -30,10 +31,17 @@ export default function App() {
   const [startLabel, setStartLabel] = useState('');
   const [distance, setDistance] = useState(init.distance);
   const [mode, setMode] = useState(init.mode);
+  const [bikeType, setBikeType] = useState(init.bikeType);
   const [surfacePref, setSurfacePref] = useState(init.surfacePref);
   const [wellLit, setWellLit] = useState(init.wellLit);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showMapHints, setShowMapHints] = useState(true);
+  const [showMapHints, setShowMapHints] = useState(() => {
+    try {
+      return localStorage.getItem('looply.hintsDismissed') !== '1';
+    } catch {
+      return true;
+    }
+  });
   const [elevationBias, setElevationBias] = useState(init.elevationBias);
 
   const [routes, setRoutes] = useState([]);
@@ -44,9 +52,14 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const routingParams = useMemo(
-    () => ({ mode, surfacePref, wellLit, elevationBias }),
-    [mode, surfacePref, wellLit, elevationBias]
+    () => ({ mode, bikeType, surfacePref, wellLit, elevationBias }),
+    [mode, bikeType, surfacePref, wellLit, elevationBias]
   );
+
+  // Upload the routing profile ahead of the first Generate.
+  useEffect(() => {
+    warmupProfile(mode);
+  }, [mode]);
 
   useEffect(() => {
     if (init.lat == null || init.lng == null) return;
@@ -72,8 +85,8 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    writeUrlParams({ startPoint, areaPoint, distance, mode, surfacePref, wellLit, elevationBias });
-  }, [startPoint, areaPoint, distance, mode, surfacePref, wellLit, elevationBias]);
+    writeUrlParams({ startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias });
+  }, [startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias]);
 
   const handleMapClick = useCallback(async (lat, lng) => {
     if (currentRoute) return;
@@ -177,6 +190,15 @@ export default function App() {
     downloadGpx(currentRoute.points, `looply-${distance}km`);
   }, [currentRoute, distance]);
 
+  const handleDismissMapHints = useCallback(() => {
+    setShowMapHints(false);
+    try {
+      localStorage.setItem('looply.hintsDismissed', '1');
+    } catch {
+      // private mode etc. — dismissal just won't persist
+    }
+  }, []);
+
   const showSearchAreaButton =
     !!startPoint &&
     !!mapDragCenter &&
@@ -206,20 +228,19 @@ export default function App() {
           startLabel={startLabel}
           distance={distance}
           mode={mode}
+          bikeType={bikeType}
           surfacePref={surfacePref}
           wellLit={wellLit}
           elevationBias={elevationBias}
           onStartSearch={handleStartSearch}
           onDistanceChange={setDistance}
           onModeChange={setMode}
+          onBikeTypeChange={setBikeType}
           onSurfaceChange={setSurfacePref}
           onLitToggle={setWellLit}
           onElevationChange={setElevationBias}
           onGenerate={handleGenerate}
-          onClearRoutes={handleClearRoutes}
-          onExportGpx={handleExportGpx}
           loading={loading}
-          hasRoute={!!currentRoute}
           onClose={() => setSidebarOpen(false)}
         />
       </aside>
@@ -258,7 +279,9 @@ export default function App() {
             onSearchInArea={handleSearchInArea}
             onClearArea={handleClearArea}
           />
-          {showMapHints && <MapInteractionHints onDismiss={() => setShowMapHints(false)} />}
+          {showMapHints && !!currentRoute && (
+            <MapInteractionHints onDismiss={handleDismissMapHints} />
+          )}
 
           {loading && <LoadingOverlay />}
           {!currentRoute && !loading && <MapEmptyHint hasStartPoint={!!startPoint} />}
@@ -270,10 +293,13 @@ export default function App() {
             <StatsBar
               distance={currentRoute.distance}
               ascent={currentRoute.ascent}
+              surface={currentRoute.surface}
               routeIdx={routeIdx}
               routeCount={routes.length}
               onPrev={handlePrevRoute}
               onNext={handleNextRoute}
+              onExportGpx={handleExportGpx}
+              onClear={handleClearRoutes}
             />
             <div className="flex-1">
               <ElevationChart

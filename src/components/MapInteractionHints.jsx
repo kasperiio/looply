@@ -16,9 +16,9 @@ export default function MapInteractionHints({ onDismiss }) {
           </button>
         </div>
         <ul className="mt-2 space-y-1.5 text-xs text-gray-400 leading-snug">
-          <li>Waypoints can be moved by dragging and dropping.</li>
-          <li>Waypoints can be added by double-clicking on the route.</li>
-          <li>Remember to set your preferences before generating a route.</li>
+          <li>Drag a waypoint to reshape the route.</li>
+          <li>Double-click the route to add a waypoint.</li>
+          <li>Pan the map to search a different area.</li>
         </ul>
       </div>
     </div>

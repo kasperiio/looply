@@ -1,6 +1,7 @@
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
 
 const VALID_MODES = ['running', 'cycling'];
+const VALID_BIKE_TYPES = ['road', 'gravel', 'mtb'];
 const MIN_DISTANCE_KM = 1;
 const MAX_DISTANCE_KM = 50;
 const DEFAULT_DISTANCE_KM = 10;
@@ -26,7 +27,13 @@ export function isFinitePoint(point) {
 export function readUrlParams() {
   const p = new URLSearchParams(window.location.search);
   const rawSurface = p.get('surface') ?? 'any';
-  const rawMode = p.get('mode');
+  let rawMode = p.get('mode');
+  let rawBike = p.get('bike');
+  // legacy URLs from when MTB was a top-level mode
+  if (rawMode === 'mtb') {
+    rawMode = 'cycling';
+    rawBike = 'mtb';
+  }
   const lat = parseFiniteNumber(p.get('lat'));
   const lng = parseFiniteNumber(p.get('lng'));
   const areaLat = parseFiniteNumber(p.get('alat'));
@@ -41,6 +48,7 @@ export function readUrlParams() {
     areaLng,
     distance: rawDistance == null ? DEFAULT_DISTANCE_KM : clamp(rawDistance, MIN_DISTANCE_KM, MAX_DISTANCE_KM),
     mode: VALID_MODES.includes(rawMode) ? rawMode : 'running',
+    bikeType: VALID_BIKE_TYPES.includes(rawBike) ? rawBike : 'road',
     surfacePref: VALID_SURFACE_PREFS.includes(rawSurface) ? rawSurface : 'any',
     wellLit: p.get('lit') === '1',
     elevationBias: rawElevationBias == null ? DEFAULT_ELEVATION_BIAS : clamp(Math.round(rawElevationBias), 0, 100),
@@ -59,6 +67,7 @@ export function writeUrlParams(state) {
   }
   p.set('d', state.distance);
   p.set('mode', state.mode);
+  p.set('bike', state.bikeType);
   p.set('surface', state.surfacePref);
   p.set('lit', state.wellLit ? '1' : '0');
   p.set('ele', state.elevationBias);

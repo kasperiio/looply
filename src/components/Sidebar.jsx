@@ -1,36 +1,64 @@
 import {
   Zap, Navigation, Bike, Footprints,
-  Sun, MoveHorizontal, Download,
-  Loader2, X, Github, Trash2,
+  Sun, MoveHorizontal,
+  Loader2, X, Github,
 } from 'lucide-react';
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
 import Toggle from './Toggle.jsx';
 import StartPointSearch from './StartPointSearch.jsx';
 
 const SURFACE_OPTIONS = [
-  { value: 'paved', label: 'Road', description: 'Asphalt & paved surfaces' },
-  { value: 'any', label: 'Any', description: 'Mixed, whatever is available' },
-  { value: 'trail', label: 'Unpaved', description: 'Dirt, gravel & footpaths' },
+  { value: 'paved', label: 'Road', description: 'Asphalt & paved surfaces', emoji: '🛣️' },
+  { value: 'any', label: 'Any', description: 'Mixed, whatever is available', emoji: '🪨' },
+  { value: 'trail', label: 'Unpaved', description: 'Dirt, gravel & footpaths', emoji: '🌿' },
 ].filter((o) => VALID_SURFACE_PREFS.includes(o.value));
+
+const BIKE_TYPE_OPTIONS = [
+  { value: 'road', label: 'Road', description: 'Fast riding on asphalt', emoji: '🚴' },
+  { value: 'gravel', label: 'Gravel', description: 'Forest roads & smooth gravel tracks', emoji: '🪨' },
+  { value: 'mtb', label: 'MTB', description: 'Singletrack & technical trails', emoji: '⛰️' },
+];
+
+function OptionGrid({ options, selected, onSelect }) {
+  return (
+    <div className="grid grid-cols-3 gap-1.5">
+      {options.map(({ value, label, description, emoji }) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => onSelect(value)}
+          title={description}
+          className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
+            selected === value
+              ? 'bg-lime-400/10 border-lime-400/40 text-lime-300'
+              : 'bg-gray-900/60 border-gray-800 text-gray-500 hover:border-gray-700 hover:text-gray-300'
+          }`}
+        >
+          <span className="text-sm leading-none">{emoji}</span>
+          <span className="mt-0.5">{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function Sidebar({
   startLabel,
   distance,
   mode,
+  bikeType,
   surfacePref,
   wellLit,
   elevationBias,
   onStartSearch,
   onDistanceChange,
   onModeChange,
+  onBikeTypeChange,
   onSurfaceChange,
   onLitToggle,
   onElevationChange,
   onGenerate,
-  onClearRoutes,
-  onExportGpx,
   loading,
-  hasRoute,
   onClose,
 }) {
   return (
@@ -110,29 +138,17 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-400">Surface</label>
-        <div className="grid grid-cols-3 gap-1.5">
-          {SURFACE_OPTIONS.map(({ value, label, description }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => onSurfaceChange(value)}
-              title={description}
-              className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
-                surfacePref === value
-                  ? 'bg-lime-400/10 border-lime-400/40 text-lime-300'
-                  : 'bg-gray-900/60 border-gray-800 text-gray-500 hover:border-gray-700 hover:text-gray-300'
-              }`}
-            >
-              <span className="text-sm leading-none">
-                {value === 'paved' ? '🛣️' : value === 'any' ? '🪨' : '🌿'}
-              </span>
-              <span className="mt-0.5">{label}</span>
-            </button>
-          ))}
+      {mode === 'cycling' ? (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-400">Bike</label>
+          <OptionGrid options={BIKE_TYPE_OPTIONS} selected={bikeType} onSelect={onBikeTypeChange} />
         </div>
-      </div>
+      ) : (
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-gray-400">Surface</label>
+          <OptionGrid options={SURFACE_OPTIONS} selected={surfacePref} onSelect={onSurfaceChange} />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Toggle
@@ -175,25 +191,6 @@ export default function Sidebar({
         {loading ? <Loader2 size={15} className="animate-spin" /> : <Zap size={15} />}
         {loading ? 'Generating…' : 'Generate Route'}
       </button>
-
-      {hasRoute && (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            type="button"
-            onClick={onClearRoutes}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-red-500/30 bg-red-500/10 text-red-300 hover:border-red-400/50 hover:text-red-200 text-xs font-medium transition-all"
-          >
-            <Trash2 size={12} /> Clear
-          </button>
-          <button
-            type="button"
-            onClick={onExportGpx}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-gray-700 bg-gray-900/60 text-gray-300 hover:border-gray-600 hover:text-white text-xs font-medium transition-all"
-          >
-            <Download size={12} /> GPX
-          </button>
-        </div>
-      )}
     </div>
   );
 }

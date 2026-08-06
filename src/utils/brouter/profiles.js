@@ -14,6 +14,7 @@
  *   profile:downhillcost=N    cost per descended meter          (Terrain)
  *   profile:road_aversion=N   run only — scales car-road surcharge
  *   profile:avoid_unsafe=1    bike only — penalize roads without bike infra
+ *   profile:mtb=1             bike only — welcome singletrack & rough tracks
  *
  * The lighting preference works because brouter.de's segment data encodes
  * the OSM `lit` tag (see lookups.dat) — standard profiles just never
@@ -52,6 +53,11 @@ assign prefer_unpaved = false
 assign prefer_lit     = false
 assign allow_steps    = true
 assign allow_ferries  = true
+
+# MTB style: singletrack (path/bridleway, rough tracktypes) is welcome.
+# Without it, prefer_unpaved means gravel style: smooth forest tracks are
+# ideal but technical singletrack is avoided.
+assign mtb = false
 
 assign consider_elevation = true
 assign downhillcost       = 60
@@ -209,14 +215,22 @@ assign costfactor
   add ( if stick_to_cycleroutes then 0.5 else 0.05 )
 
   if      ( highway=pedestrian                ) then ( if isbike then ( if hascycleway then 1.1 else 2.2 ) else 3 )
-  else if ( highway=bridleway                 ) then ( if prefer_unpaved then 1.5 else 5 )
+  else if ( highway=bridleway                 ) then ( if mtb then 1.0 else if prefer_unpaved then 1.5 else 5 )
   else if ( highway=cycleway                  ) then 1
   else if ( isresidentialorliving             ) then ( if isunpaved then 1.5 else 1.1 )
   else if ( highway=service                   ) then ( if isunpaved then 1.6 else 1.3 )
 
   else if ( highway=track|road|path|footway ) then
   (
-    if ( prefer_unpaved ) then ( if tracktype=grade4|grade5 then 1.4 else 1.0 )
+    # MTB: singletrack and rough tracks are the point
+    if ( mtb ) then ( if tracktype=grade4|grade5 then 1.1 else 1.0 )
+    # gravel: smooth unpaved tracks are ideal, technical singletrack is not
+    else if ( prefer_unpaved ) then
+    (
+      if ( highway=path|footway ) then 1.8
+      else if ( tracktype=grade4|grade5 ) then 1.8
+      else 1.0
+    )
     else if ( tracktype=grade1 ) then ( if probablyGood then 1.0 else 1.3 )
     else if ( tracktype=grade2 ) then ( if probablyGood then 1.1 else 2.0 )
     else if ( tracktype=grade3 ) then ( if probablyGood then 1.5 else 3.0 )

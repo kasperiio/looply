@@ -13,14 +13,13 @@ export function isIslandError(message = '') {
  * Standard-profile fallback, used only when the custom profile upload or a
  * request with it fails (brouter.de purges uploaded profiles eventually).
  */
-function selectFallbackProfile(mode, surfacePref, wellLit = false) {
-  const pref = wellLit && surfacePref === 'trail' ? 'any' : surfacePref;
-
+function selectFallbackProfile(mode, bikeType, surfacePref, wellLit = false) {
   if (mode === 'cycling') {
-    if (pref === 'paved') return 'fastbike';
-    if (pref === 'trail') return 'mtb';
-    return 'safety';
+    if (bikeType === 'mtb') return 'mtb';
+    if (bikeType === 'gravel') return 'gravel';
+    return 'fastbike';
   }
+  const pref = wellLit && surfacePref === 'trail' ? 'any' : surfacePref;
   if (pref === 'trail') return 'hiking-mountain';
   return 'trekking';
 }
@@ -103,6 +102,7 @@ function baseParams(lonlats, profile, alternativeidx) {
 export async function fetchRoute({
   waypoints,
   mode = 'running',
+  bikeType = 'road',
   surfacePref = 'any',
   wellLit = false,
   elevationBias = 50,
@@ -112,7 +112,7 @@ export async function fetchRoute({
     .map(([lat, lng]) => `${lng.toFixed(6)},${lat.toFixed(6)}`)
     .join('|');
 
-  const kind = mode === 'cycling' ? 'bike' : 'run';
+  const kind = mode === 'running' ? 'run' : 'bike';
   const { uphillcost, downhillcost } = elevationCosts(elevationBias);
 
   // How hard running routes avoid car-traffic roads, by surface mode:
@@ -122,16 +122,28 @@ export async function fetchRoute({
 
   const buildCustomParams = (profileId) => {
     const params = baseParams(lonlats, profileId, alternativeidx);
-    if (surfacePref === 'paved') params.set('profile:avoid_unpaved', '1');
-    if (surfacePref === 'trail') params.set('profile:prefer_unpaved', '1');
-    if (wellLit) params.set('profile:prefer_lit', '1');
     params.set('profile:uphillcost', String(uphillcost));
     params.set('profile:downhillcost', String(downhillcost));
-    if (kind === 'run') {
-      params.set('profile:road_aversion', String(ROAD_AVERSION[surfacePref] ?? 1));
-    } else if (surfacePref === 'trail') {
-      params.set('profile:avoid_unsafe', '1');
+    if (wellLit) params.set('profile:prefer_lit', '1');
+
+    if (mode === 'cycling') {
+      // discipline decides surface — the surface selector doesn't apply
+      if (bikeType === 'mtb') {
+        params.set('profile:mtb', '1');
+        params.set('profile:prefer_unpaved', '1');
+        params.set('profile:avoid_unsafe', '1');
+      } else if (bikeType === 'gravel') {
+        params.set('profile:prefer_unpaved', '1');
+        params.set('profile:avoid_unsafe', '1');
+      } else {
+        params.set('profile:avoid_unpaved', '1');
+      }
+      return params;
     }
+
+    if (surfacePref === 'paved') params.set('profile:avoid_unpaved', '1');
+    if (surfacePref === 'trail') params.set('profile:prefer_unpaved', '1');
+    params.set('profile:road_aversion', String(ROAD_AVERSION[surfacePref] ?? 1));
     return params;
   };
 
@@ -151,11 +163,20 @@ export async function fetchRoute({
   } catch (err) {
     if (isIslandError(err.message)) throw err;
     // Custom-profile path is down entirely — fall back to standard profiles.
-    const profile = selectFallbackProfile(mode, surfacePref, wellLit);
+    const profile = selectFallbackProfile(mode, bikeType, surfacePref, wellLit);
     const params = baseParams(lonlats, profile, alternativeidx);
     if (UPHILL_TUNABLE_PROFILES.has(profile)) {
       params.set('profile:uphillcostfactor', uphillCostFactor(elevationBias));
     }
     return requestRoute(params);
   }
+}
+
+/**
+ * Upload the activity's profile ahead of time so the first Generate doesn't
+ * pay the round trip. Failures are ignored — fetchRoute retries and falls
+ * back on its own.
+ */
+export function warmupProfile(mode) {
+  getCustomProfileId(mode === 'running' ? 'run' : 'bike').catch(() => {});
 }
