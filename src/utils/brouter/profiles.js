@@ -12,6 +12,8 @@
  *   profile:prefer_lit=1      penalize unlit / unknown-lit ways (Well-Lit)
  *   profile:uphillcost=N      cost per climbed meter            (Terrain)
  *   profile:downhillcost=N    cost per descended meter          (Terrain)
+ *   profile:road_aversion=N   run only — scales car-road surcharge
+ *   profile:avoid_unsafe=1    bike only — penalize roads without bike infra
  *
  * The lighting preference works because brouter.de's segment data encodes
  * the OSM `lit` tag (see lookups.dat) — standard profiles just never
@@ -317,6 +319,11 @@ assign prefer_lit     = false
 assign allow_steps    = true
 assign allow_ferries  = true
 
+# Scales the surcharge on car-traffic roads (0 = roads cost like quiet
+# streets, 1 = defaults, >1 = strongly avoid). At 1 the class costs are
+# unclassified 1.5, tertiary 1.6, secondary 2.0, primary 2.8, trunk 6.0.
+assign road_aversion  = 1
+
 assign consider_elevation = true
 assign downhillcost       = 0
 assign downhillcutoff     = 1.5
@@ -382,11 +389,11 @@ assign costfactor
   else if ( highway=bridleway                 ) then 1.2
   else if ( isresidentialorliving             ) then 1.2
   else if ( highway=service                   ) then 1.4
-  else if ( highway=unclassified              ) then 1.5
-  else if ( highway=tertiary|tertiary_link    ) then 1.6
-  else if ( highway=secondary|secondary_link  ) then 2.0
-  else if ( highway=primary|primary_link      ) then 2.8
-  else if ( highway=trunk|trunk_link          ) then 6.0
+  else if ( highway=unclassified              ) then ( add 1.2 multiply 0.3 road_aversion )
+  else if ( highway=tertiary|tertiary_link    ) then ( add 1.2 multiply 0.4 road_aversion )
+  else if ( highway=secondary|secondary_link  ) then ( add 1.2 multiply 0.8 road_aversion )
+  else if ( highway=primary|primary_link      ) then ( add 1.2 multiply 1.6 road_aversion )
+  else if ( highway=trunk|trunk_link          ) then ( add 1.2 multiply 4.8 road_aversion )
 
   else 2.0
 

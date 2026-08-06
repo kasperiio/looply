@@ -115,6 +115,11 @@ export async function fetchRoute({
   const kind = mode === 'cycling' ? 'bike' : 'run';
   const { uphillcost, downhillcost } = elevationCosts(elevationBias);
 
+  // How hard running routes avoid car-traffic roads, by surface mode:
+  // Road mode accepts them (that's where the pavement is), trail mode
+  // strongly prefers to stay off them.
+  const ROAD_AVERSION = { paved: 0.7, any: 1, trail: 1.6 };
+
   const buildCustomParams = (profileId) => {
     const params = baseParams(lonlats, profileId, alternativeidx);
     if (surfacePref === 'paved') params.set('profile:avoid_unpaved', '1');
@@ -122,6 +127,11 @@ export async function fetchRoute({
     if (wellLit) params.set('profile:prefer_lit', '1');
     params.set('profile:uphillcost', String(uphillcost));
     params.set('profile:downhillcost', String(downhillcost));
+    if (kind === 'run') {
+      params.set('profile:road_aversion', String(ROAD_AVERSION[surfacePref] ?? 1));
+    } else if (surfacePref === 'trail') {
+      params.set('profile:avoid_unsafe', '1');
+    }
     return params;
   };
 
