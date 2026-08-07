@@ -38,6 +38,17 @@ assign surfaceprefpenalty =
   add ( if ( and avoid_unpaved ( and surface= trackish ) ) then 2.0 else 0 )
   add ( if ( and prefer_unpaved hardsurface ) then 1.2 else 0 )
       ( if ( and prefer_lit not islit ) then ( if lit=no then 2.0 else 0.8 ) else 0 )
+
+# Stay on public roads and paths: penalize private-ish ways (driveways,
+# parking aisles, customer/delivery areas, indoor corridors) without hard
+# exclusion — the start point itself often sits on a driveway. Ways tagged
+# access=private (and its aliases: restricted, residents, employees) are
+# already excluded by the access logic.
+assign privatepenalty =
+  add ( if highway=corridor then 20 else 0 )
+  add ( if ( and highway=service service=driveway|parking_aisle|drive-through|emergency_access|parking ) then 4.0 else 0 )
+  add ( if ( and highway=service service= ) then 0.6 else 0 )
+      ( if access=customers|delivery then 1.5 else 0 )
 `;
 
 export const LOOPLY_BIKE_PROFILE = `# Looply cycling profile — derived from BRouter's standard trekking profile,
@@ -204,6 +215,8 @@ assign costfactor
   else min 9999
 
   add surfaceprefpenalty
+
+  add privatepenalty
 
   add max onewaypenalty accesspenalty
 
@@ -390,6 +403,8 @@ assign costfactor
   else min 9999
 
   add surfaceprefpenalty
+
+  add privatepenalty
 
   add accesspenalty
 
