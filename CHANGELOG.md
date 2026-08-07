@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/kasperiio/looply/compare/v1.5.0...v1.6.0) (2026-08-07)
+
+
+### Features
+
+* **routing:** avoid private-ish ways, stay on public roads and paths ([80b7d57](https://github.com/kasperiio/looply/commit/80b7d57921772dca0d500e0fd379a58434811f1b))
+* **routing:** avoid private-ish ways, stay on public roads and paths ([79e8c8f](https://github.com/kasperiio/looply/commit/79e8c8fb1ad905f8b256c618a4d26d62867e7040))
+
 ## [1.5.0](https://github.com/kasperiio/looply/compare/v1.4.0...v1.5.0) (2026-08-07)
 
 
