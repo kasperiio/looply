@@ -1,5 +1,6 @@
 import { MapPin, Search, Loader2 } from 'lucide-react';
 import { usePlaceSearch } from '../hooks/usePlaceSearch.js';
+import { formatPlace } from '../utils/nominatim.js';
 
 export default function StartPointSearch({ startLabel, onStartSearch }) {
   const {
@@ -12,10 +13,10 @@ export default function StartPointSearch({ startLabel, onStartSearch }) {
     clearResults,
   } = usePlaceSearch(startLabel);
 
-  const handleSelect = (r) => {
-    setQuery(r.display_name.split(',').slice(0, 2).join(','));
+  const handleSelect = (r, place) => {
+    setQuery(place.label);
     clearResults();
-    onStartSearch(parseFloat(r.lat), parseFloat(r.lon), r.display_name);
+    onStartSearch(parseFloat(r.lat), parseFloat(r.lon), place.label);
   };
 
   return (
@@ -38,17 +39,30 @@ export default function StartPointSearch({ startLabel, onStartSearch }) {
           )}
         </div>
         {showResults && results.length > 0 && (
-          <div className="absolute z-50 top-full mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg overflow-hidden shadow-xl max-h-48 overflow-y-auto">
-            {results.map((r, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => handleSelect(r)}
-                className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 hover:text-lime-300 transition-colors border-b border-gray-800 last:border-0"
-              >
-                {r.display_name}
-              </button>
-            ))}
+          <div className="absolute z-50 top-full mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg overflow-hidden shadow-xl max-h-56 overflow-y-auto">
+            {results.map((r, i) => {
+              const place = formatPlace(r);
+              return (
+                <button
+                  key={r.place_id ?? i}
+                  type="button"
+                  onClick={() => handleSelect(r, place)}
+                  className="group w-full flex items-start gap-2 text-left px-3 py-2 hover:bg-gray-800 transition-colors border-b border-gray-800 last:border-0"
+                >
+                  <MapPin size={12} className="mt-0.5 shrink-0 text-gray-600 group-hover:text-lime-400 transition-colors" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium text-gray-200 group-hover:text-lime-300 truncate transition-colors">
+                      {place.primary}
+                    </span>
+                    {place.secondary && (
+                      <span className="block text-[10px] text-gray-500 truncate mt-0.5">
+                        {place.secondary}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
