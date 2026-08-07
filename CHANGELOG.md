@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/kasperiio/looply/compare/v1.4.0...v1.5.0) (2026-08-07)
+
+
+### Features
+
+* **search:** compact address labels and address-only results ([8deba6b](https://github.com/kasperiio/looply/commit/8deba6b02544c317bad0cf7eb3c8c43c60b12102))
+* **search:** compact address labels and address-only results ([c4527e3](https://github.com/kasperiio/looply/commit/c4527e3bc9357690425cfafe9bf5a13b870367e5))
+
 ## [1.4.0](https://github.com/kasperiio/looply/compare/v1.3.0...v1.4.0) (2026-08-06)
 
 
