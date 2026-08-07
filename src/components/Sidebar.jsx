@@ -156,7 +156,7 @@ export default function Sidebar({
           icon={Sun}
           checked={wellLit}
           onChange={onLitToggle}
-          description="Prefer lit streets & paths (OSM lit=yes)"
+          description="Prefer lit streets & paths"
         />
       </div>
 
