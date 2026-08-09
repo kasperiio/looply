@@ -20,11 +20,40 @@ export function calcRouteDistanceKm(points) {
   return d;
 }
 
-export function calcAscentM(points) {
+// BRouter elevations come from SRTM quantized to 0.25 m steps, so summing every
+// positive delta accumulates sampling noise rather than climbing (a flat 12 km
+// Helsinki loop spanning 1.75–23 m reports ~113 m that way). Only count a rise
+// once it clears this much above the running low.
+const ASCENT_HYSTERESIS_M = 2;
+
+/**
+ * Total ascent in metres, ignoring wobble below the hysteresis threshold.
+ * Computed from the same points we render and export, so the figure is
+ * reproducible from the downloaded GPX — BRouter's own `filtered ascend`
+ * property is a routing-cost heuristic (~10 m hysteresis) that swallows real
+ * climbs and cannot be derived from the track.
+ */
+export function calcAscentM(points, thresholdM = ASCENT_HYSTERESIS_M) {
+  if (!points || points.length < 2) return 0;
+
   let ascent = 0;
+  let low = points[0][2] ?? 0;
+  let high = low;
+
   for (let i = 1; i < points.length; i++) {
-    const diff = (points[i][2] ?? 0) - (points[i - 1][2] ?? 0);
-    if (diff > 0) ascent += diff;
+    const ele = points[i][2] ?? 0;
+    if (ele > high) {
+      high = ele;
+      if (high - low > thresholdM) {
+        ascent += high - low;
+        low = high;
+      }
+    } else if (ele < low) {
+      // Dropping below the baseline discards any uncredited rise as noise.
+      low = ele;
+      high = ele;
+    }
   }
+
   return ascent;
 }

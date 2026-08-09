@@ -115,9 +115,9 @@ export function parseGeoJson(geojson) {
   const props = feature.properties || {};
 
   const distance = calcRouteDistanceKm(points);
-  const ascent = props['filtered ascend']
-    ? parseFloat(props['filtered ascend'])
-    : calcAscentM(points);
+  // Derived from the pruned points, not props['filtered ascend'] — that value
+  // is computed on the pre-prune geometry and under-reports by ~3x.
+  const ascent = calcAscentM(points);
   const surface = parseSurface(props.messages);
   const segments = buildSegments(points, props.messages);
 
