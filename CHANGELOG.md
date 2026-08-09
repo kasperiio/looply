@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.1](https://github.com/kasperiio/looply/compare/v1.6.0...v1.6.1) (2026-08-09)
+
+
+### Bug Fixes
+
+* keep runners off fast roads, and report ascent that matches the exported GPX ([8f9aa15](https://github.com/kasperiio/looply/commit/8f9aa15a8b06961b8761e323bb6f952f27b82353))
+* **routing:** keep runners off fast roads and unmarked singletrack ([fcec226](https://github.com/kasperiio/looply/commit/fcec2260bc3d0fb8225f2419c62cf16af0f88b35))
+* **stats:** compute ascent from the exported track ([1a50b2f](https://github.com/kasperiio/looply/commit/1a50b2f68318b26227f6787bfa1bce5351f348be))
+
 ## [1.6.0](https://github.com/kasperiio/looply/compare/v1.5.0...v1.6.0) (2026-08-07)
 
 
