@@ -82,8 +82,11 @@ function routeDistanceToPointKm(route, point) {
   return best;
 }
 
-// Ascent per km at (or above) which a route counts as fully "hilly".
-const HILLY_ASCENT_M_PER_KM = 18;
+// Ascent per km at (or above) which a route counts as fully "hilly". Calibrated
+// against calcAscentM over real routes: alpine ~24 m/km, forest trails ~17,
+// flat city ~6. Was 18 when ascent came from BRouter's filtered value, whose
+// scale differs non-linearly (it suppresses flat terrain far more than steep).
+const HILLY_ASCENT_M_PER_KM = 25;
 // Candidates further off target than this fraction are dropped before
 // scoring (unless that would leave fewer than two).
 const DISTANCE_GATE = 0.25;
