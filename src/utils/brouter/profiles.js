@@ -18,7 +18,15 @@
  *
  * The lighting preference works because brouter.de's segment data encodes
  * the OSM `lit` tag (see lookups.dat) — standard profiles just never
- * reference it.
+ * reference it. The same holds for `maxspeed` and `sidewalk`, which the run
+ * profile uses to keep runners off fast roads that have no footway; note
+ * lookups.dat stores maxspeed only as round decades (60, 70, … 130) and has
+ * no `width` lookup at all.
+ *
+ * Measurement trap: `processUnusedTags = false` means BRouter echoes only the
+ * tags a profile actually references. Comparing a route against an older
+ * profile therefore needs a report-only `assign dummyUsage = <tag>=` on BOTH
+ * sides, or the older one looks clean simply because it can't see the tag.
  *
  * The bike profile is derived from BRouter's standard trekking profile
  * (misc/profiles2/trekking.brf); the run profile is a foot-access variant
@@ -391,6 +399,42 @@ assign accesspenalty =
        if footaccess then 0
        else 10000
 ${SURFACE_AND_LIGHT_BLOCK}
+# Traffic safety: running on the carriageway of a fast road is dangerous, so
+# cost scales with posted speed whenever the way has no separate foot
+# infrastructure. OSM leaves \`sidewalk\` untagged on most rural roads, so an
+# absent tag is read as "no sidewalk" — the conservative direction for a safety
+# rule. Deliberately NOT tunable: road_aversion is a preference, this is not.
+assign hasfootway = or sidewalk=yes|both|left|right|separate
+                    or sidewalk:both=yes
+                    or sidewalk:left=yes
+                    or sidewalk:right=yes
+                       foot=designated|yes
+
+# brouter's lookup table only holds round-decade maxspeed values, so these
+# enumerations are exhaustive rather than a range check.
+# Magnitudes are calibrated, not guessed: over 24 sampled 13 km loops these
+# are the knee of the curve. Raising them further stops removing exposure
+# (what remains is connectors with no alternative) and only adds detour.
+assign unsafespeedpenalty =
+       if hasfootway                then 0
+  else if maxspeed=100|110|120|130  then 300
+  else if maxspeed=80|90            then 120
+  else if maxspeed=70               then 60
+  else if maxspeed=60               then 25
+  # trunk and primary carry fast traffic even where maxspeed is untagged
+  else if ( and maxspeed= highway=trunk|trunk_link     ) then 300
+  else if ( and maxspeed= highway=primary|primary_link ) then 60
+  else 0
+
+# A path worth running on: signposted for foot use, a known surface, or a
+# graded track. Anything else is unmarked singletrack — the point when the
+# runner asked for trails, a downgrade from the wider way alongside when they
+# did not.
+assign wellformedpath =
+  or foot=designated
+  or surface=paved|asphalt|concrete|paving_stones|sett|compacted|fine_gravel|gravel|wood
+     tracktype=grade1|grade2
+
 assign isresidentialorliving = or highway=residential|living_street living_street=yes
 
 assign costfactor
@@ -408,13 +452,25 @@ assign costfactor
 
   add accesspenalty
 
+  add unsafespeedpenalty
+
   if ( highway=steps ) then ( if allow_steps then 1.8 else 10000 )
   else if ( route=ferry ) then ( if allow_ferries then 5.67 else 10000 )
 
   else if ( highway=pedestrian|footway        ) then 1.0
-  else if ( highway=path                      ) then 1.0
-  else if ( highway=cycleway                  ) then 1.1
-  else if ( highway=track|road                ) then ( if tracktype=grade5 then 1.5 else 1.1 )
+  else if ( highway=cycleway                  ) then 1.0
+  else if ( highway=path                      ) then
+  (
+    # trail mode asks for singletrack; otherwise prefer the way alongside.
+    # 2.5 is deliberately moderate: it wins whenever a larger path runs
+    # nearby, without making the router allergic to trails that have no
+    # alternative. Pushing it to 4.0 only bought another 1.1 percentage
+    # points of avoidance across the sample.
+    if prefer_unpaved     then 1.0
+    else if wellformedpath then 1.15
+    else                        2.5
+  )
+  else if ( highway=track|road                ) then ( if tracktype=grade4|grade5 then 1.5 else 1.1 )
   else if ( highway=bridleway                 ) then 1.2
   else if ( isresidentialorliving             ) then 1.2
   else if ( highway=service                   ) then 1.4
