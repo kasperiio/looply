@@ -26,16 +26,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- The service worker is registered from the app (utils/swUpdate.js) so
+         update detection can drive the refresh UI. -->
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // Register service worker for PWA offline support
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {
-            // SW registration failed — app still works online
-          });
-        });
-      }
-    </script>
   </body>
 </html>

@@ -13,6 +13,7 @@ import { reverseGeocode } from './utils/nominatim';
 import { downloadGpx } from './utils/gpxExport';
 import { readUrlParams, writeUrlParams } from './utils/urlState';
 import { warmupProfile } from './utils/brouter';
+import { initServiceWorker } from './utils/swUpdate';
 import { insertWaypointByRouteOrder } from './utils/routeEditing';
 import { generateRoutes } from './services/routeGenerator';
 import { recalcRoute } from './services/routeRecalculator';
@@ -60,6 +61,9 @@ export default function App() {
   useEffect(() => {
     warmupProfile(mode);
   }, [mode]);
+
+  // Reloads the page onto a new build as soon as one is deployed.
+  useEffect(() => initServiceWorker(), []);
 
   useEffect(() => {
     if (init.lat == null || init.lng == null) return;
