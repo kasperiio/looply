@@ -1,10 +1,8 @@
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
+import { DEFAULT_DISTANCE_KM, clampDistanceKm } from '../constants/distance.js';
 
 const VALID_MODES = ['running', 'cycling'];
 const VALID_BIKE_TYPES = ['road', 'gravel', 'mtb'];
-const MIN_DISTANCE_KM = 1;
-const MAX_DISTANCE_KM = 50;
-const DEFAULT_DISTANCE_KM = 10;
 const DEFAULT_ELEVATION_BIAS = 50;
 
 function parseFiniteNumber(value) {
@@ -41,13 +39,16 @@ export function readUrlParams() {
   const rawDistance = parseFiniteNumber(p.get('d'));
   const rawElevationBias = parseFiniteNumber(p.get('ele'));
 
+  // The distance ceiling depends on the mode, so resolve the mode first.
+  const mode = VALID_MODES.includes(rawMode) ? rawMode : 'running';
+
   return {
     lat,
     lng,
     areaLat,
     areaLng,
-    distance: rawDistance == null ? DEFAULT_DISTANCE_KM : clamp(rawDistance, MIN_DISTANCE_KM, MAX_DISTANCE_KM),
-    mode: VALID_MODES.includes(rawMode) ? rawMode : 'running',
+    distance: rawDistance == null ? DEFAULT_DISTANCE_KM : clampDistanceKm(rawDistance, mode),
+    mode,
     bikeType: VALID_BIKE_TYPES.includes(rawBike) ? rawBike : 'road',
     surfacePref: VALID_SURFACE_PREFS.includes(rawSurface) ? rawSurface : 'any',
     wellLit: p.get('lit') === '1',

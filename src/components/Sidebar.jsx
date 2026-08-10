@@ -4,6 +4,7 @@ import {
   Loader2, X, Github,
 } from 'lucide-react';
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
+import { MIN_DISTANCE_KM, maxDistanceKm } from '../constants/distance.js';
 import Toggle from './Toggle.jsx';
 import StartPointSearch from './StartPointSearch.jsx';
 
@@ -102,16 +103,16 @@ export default function Sidebar({
         </label>
         <input
           type="range"
-          min={1}
-          max={50}
+          min={MIN_DISTANCE_KM}
+          max={maxDistanceKm(mode)}
           step={0.5}
           value={distance}
           onChange={(e) => onDistanceChange(parseFloat(e.target.value))}
           className="w-full h-1.5 rounded-full appearance-none bg-gray-800 cursor-pointer"
         />
         <div className="flex justify-between text-[10px] text-gray-600">
-          <span>1 km</span>
-          <span>50 km</span>
+          <span>{MIN_DISTANCE_KM} km</span>
+          <span>{maxDistanceKm(mode)} km</span>
         </div>
       </div>
 
