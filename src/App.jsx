@@ -195,14 +195,26 @@ export default function App() {
     downloadGpx(currentRoute.points, `looply-${distance}km`);
   }, [currentRoute, distance]);
 
-  const handleDismissMapHints = useCallback(() => {
-    setShowMapHints(false);
+  const rememberMapHintsSeen = () => {
     try {
       localStorage.setItem('looply.hintsDismissed', '1');
     } catch {
-      // private mode etc. — dismissal just won't persist
+      // private mode etc. — the flag just won't persist
     }
+  };
+
+  const handleDismissMapHints = useCallback(() => {
+    setShowMapHints(false);
+    rememberMapHintsSeen();
   }, []);
+
+  // The hints are a one-time introduction, so displaying them counts as
+  // having shown them — otherwise they reappear on every app open until the
+  // user happens to hit the dismiss button.
+  const mapHintsVisible = showMapHints && !!currentRoute;
+  useEffect(() => {
+    if (mapHintsVisible) rememberMapHintsSeen();
+  }, [mapHintsVisible]);
 
   const showSearchAreaButton =
     !!startPoint &&
@@ -284,9 +296,7 @@ export default function App() {
             onSearchInArea={handleSearchInArea}
             onClearArea={handleClearArea}
           />
-          {showMapHints && !!currentRoute && (
-            <MapInteractionHints onDismiss={handleDismissMapHints} />
-          )}
+          {mapHintsVisible && <MapInteractionHints onDismiss={handleDismissMapHints} />}
 
           {loading && <LoadingOverlay />}
           {!currentRoute && !loading && <MapEmptyHint hasStartPoint={!!startPoint} />}
