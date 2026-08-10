@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.6.2](https://github.com/kasperiio/looply/compare/v1.6.1...v1.6.2) (2026-08-10)
+
+
+### Bug Fixes
+
+* **pwa:** force clients onto the latest build ([9f7b917](https://github.com/kasperiio/looply/commit/9f7b917adaeb5d41496dab96e8aa8c2dc47019c5))
+* **ui:** keep the stats bar on screen on mobile browsers ([8084472](https://github.com/kasperiio/looply/commit/8084472f065fd177751257ebfcd66b0cfa873410))
+* **ui:** show the map tips only once ([a7c2c28](https://github.com/kasperiio/looply/commit/a7c2c28bb0ab3dc7b95153854cfafcf3591478aa))
+
 ## [1.6.1](https://github.com/kasperiio/looply/compare/v1.6.0...v1.6.1) (2026-08-09)
 
 
