@@ -213,7 +213,7 @@ export default function App() {
     })();
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-950">
+    <div className="flex h-full w-full overflow-hidden bg-gray-950">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-[9998] md:hidden"

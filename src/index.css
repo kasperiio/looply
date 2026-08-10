@@ -12,6 +12,11 @@
 
 html, body, #root {
   height: 100%;
+  /* Mobile browsers report 100vh as the height with the URL bar collapsed,
+     so a 100vh layout runs taller than what is actually on screen and pushes
+     the bottom bar (stats + elevation chart) out of view. dvh tracks the
+     visible area; the 100% above is the fallback for browsers without it. */
+  height: 100dvh;
   width: 100%;
   overflow: hidden;
   background: #030712;
