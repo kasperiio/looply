@@ -15,6 +15,8 @@ import { readUrlParams, writeUrlParams } from './utils/urlState';
 import { warmupProfile } from './utils/brouter';
 import { initServiceWorker } from './utils/swUpdate';
 import { insertWaypointByRouteOrder } from './utils/routeEditing';
+import { clampDistanceKm } from './constants/distance.js';
+import { useEdgeSwipe } from './hooks/useEdgeSwipe.js';
 import { generateRoutes } from './services/routeGenerator';
 import { recalcRoute } from './services/routeRecalculator';
 import { ChevronRight } from 'lucide-react';
@@ -79,6 +81,9 @@ export default function App() {
           const lat = coords.latitude;
           const lng = coords.longitude;
           setStartPoint({ lat, lng });
+          // With a start point in hand the next step is picking a distance, so
+          // surface the settings drawer (a no-op on desktop, where it is pinned).
+          setSidebarOpen(true);
           reverseGeocode(lat, lng)
             .then(setStartLabel)
             .catch(() => setStartLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`));
@@ -114,6 +119,13 @@ export default function App() {
 
   const handleMapDrag = useCallback((lat, lng) => {
     setMapDragCenter({ lat, lng });
+  }, []);
+
+  // Running has a lower ceiling than cycling, so a long ride's target has to
+  // come back into range when the mode switches.
+  const handleModeChange = useCallback((nextMode) => {
+    setMode(nextMode);
+    setDistance((km) => clampDistanceKm(km, nextMode));
   }, []);
 
   const handleClearArea = useCallback(() => setAreaPoint(null), []);
@@ -216,6 +228,8 @@ export default function App() {
     if (mapHintsVisible) rememberMapHintsSeen();
   }, [mapHintsVisible]);
 
+  const edgeSwipe = useEdgeSwipe(useCallback(() => setSidebarOpen(true), []));
+
   const showSearchAreaButton =
     !!startPoint &&
     !!mapDragCenter &&
@@ -251,7 +265,7 @@ export default function App() {
           elevationBias={elevationBias}
           onStartSearch={handleStartSearch}
           onDistanceChange={setDistance}
-          onModeChange={setMode}
+          onModeChange={handleModeChange}
           onBikeTypeChange={setBikeType}
           onSurfaceChange={setSurfacePref}
           onLitToggle={setWellLit}
@@ -265,17 +279,26 @@ export default function App() {
       <div className="flex-1 flex flex-col relative overflow-hidden min-w-0">
         <div className="flex-1 relative">
           {!sidebarOpen && (
-            <button
-              type="button"
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-[9999] md:hidden
-                         bg-gray-900 border-y border-r border-gray-700
-                         rounded-r-xl py-5 px-1 text-gray-400 hover:text-lime-400
-                         shadow-lg transition-colors"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open settings"
-            >
-              <ChevronRight size={15} />
-            </button>
+            <>
+              {/* Catches the open gesture above the map, so Leaflet never sees
+                  it as a pan. */}
+              <div
+                className="absolute inset-y-0 left-0 w-6 z-[9998] md:hidden"
+                {...edgeSwipe}
+              />
+
+              <button
+                type="button"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-[9999] md:hidden
+                           bg-gray-900 border-y border-r border-gray-700
+                           rounded-r-xl py-5 px-1 text-gray-400 hover:text-lime-400
+                           shadow-lg transition-colors"
+                onClick={() => setSidebarOpen(true)}
+                aria-label="Open settings"
+              >
+                <ChevronRight size={15} />
+              </button>
+            </>
           )}
 
           <MapView
