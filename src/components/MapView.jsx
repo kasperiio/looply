@@ -19,6 +19,7 @@ export default function MapView({
   onMapDrag,
   onWaypointDrag,
   onRouteDoubleClick,
+  onLocateError,
 }) {
   const hasRoute = routePoints && routePoints.length > 1;
 
@@ -49,7 +50,7 @@ export default function MapView({
       <DisableDoubleClickZoom />
       <FlyToBounds routePoints={routePoints} />
       <FlyToStart startPoint={startPoint} hasRoute={hasRoute} />
-      <LocateControl onMapClick={onMapClick} />
+      <LocateControl onMapClick={onMapClick} onError={onLocateError} />
 
       <RouteLayers
         drawSegments={drawSegments}

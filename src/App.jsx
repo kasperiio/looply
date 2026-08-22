@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, lazy, Suspense } from 'react';
 import MapView from './components/MapView';
 import Sidebar from './components/Sidebar';
-import ElevationChart from './components/ElevationChart';
 import StatsBar from './components/StatsBar';
 import LoadingOverlay from './components/LoadingOverlay';
 import MapStatusToast from './components/MapStatusToast';
 import SearchAreaBanner from './components/SearchAreaBanner';
 import MapEmptyHint from './components/MapEmptyHint';
 import MapInteractionHints from './components/MapInteractionHints';
+import RefiningIndicator from './components/RefiningIndicator';
 import { haversineKm } from './utils/circularRoute';
 import { reverseGeocode } from './utils/nominatim';
 import { downloadGpx } from './utils/gpxExport';
@@ -20,6 +20,14 @@ import { useEdgeSwipe } from './hooks/useEdgeSwipe.js';
 import { generateRoutes } from './services/routeGenerator';
 import { recalcRoute } from './services/routeRecalculator';
 import { ChevronRight } from 'lucide-react';
+
+// Recharts is the single biggest thing in the bundle and is only needed once a
+// route exists — which is never, on a first visit that has not generated yet.
+// Splitting it out keeps the initial load to the map and the sidebar.
+const ElevationChart = lazy(() => import('./components/ElevationChart'));
+
+// How long the one-time map hints stay up before dismissing themselves.
+const MAP_HINTS_VISIBLE_MS = 12000;
 
 export default function App() {
   const init = readUrlParams();
@@ -53,7 +61,18 @@ export default function App() {
 
   const [hoverPoint, setHoverPoint] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Distinct from `loading`: `loading` means nothing is on the map yet and the
+  // blocking overlay is right; `refining` means a usable loop is already shown
+  // and better candidates are still landing behind it.
+  const [refining, setRefining] = useState(false);
   const [error, setError] = useState(null);
+
+  // Every generation gets a number. Only the newest one is allowed to write
+  // state, so a slow run that resolves after a newer one cannot clobber it —
+  // and the controller lets a superseded run stop sending requests at all
+  // rather than finishing into the void.
+  const generationRef = useRef(0);
+  const abortRef = useRef(null);
   const routingParams = useMemo(
     () => ({ mode, bikeType, surfacePref, wellLit, elevationBias }),
     [mode, bikeType, surfacePref, wellLit, elevationBias]
@@ -66,6 +85,9 @@ export default function App() {
 
   // Reloads the page onto a new build as soon as one is deployed.
   useEffect(() => initServiceWorker(), []);
+
+  // Don't leave requests running for a page that is going away.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
     if (init.lat == null || init.lng == null) return;
@@ -93,8 +115,14 @@ export default function App() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Debounced: dragging the distance or terrain slider fires this on every
+  // tick, and replaceState is not free. Nothing reads the URL back mid-drag,
+  // so it only has to catch up once the user settles.
   useEffect(() => {
-    writeUrlParams({ startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias });
+    const id = setTimeout(() => {
+      writeUrlParams({ startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias });
+    }, 250);
+    return () => clearTimeout(id);
   }, [startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias]);
 
   const handleMapClick = useCallback(async (lat, lng) => {
@@ -131,6 +159,11 @@ export default function App() {
   const handleClearArea = useCallback(() => setAreaPoint(null), []);
 
   const handleClearRoutes = useCallback(() => {
+    // Abandon anything still in flight, and make sure its result cannot land.
+    abortRef.current?.abort();
+    generationRef.current += 1;
+    setLoading(false);
+    setRefining(false);
     setRoutes([]);
     setRouteIdx(0);
     setHoverPoint(null);
@@ -166,23 +199,47 @@ export default function App() {
   }, [currentRoute, recalcRouteWithWaypoints]);
 
   const handleGenerate = useCallback(async (preferredArea = areaPoint, options = {}) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const generation = ++generationRef.current;
+    const isCurrent = () => generationRef.current === generation;
+
     setLoading(true);
+    setRefining(true);
     setError(null);
+    setRoutes([]);
+    setRouteIdx(0);
+
     const result = await generateRoutes({
       startPoint,
       distance,
       preferredArea,
       prioritizeArea: options?.prioritizeArea === true,
       ...routingParams,
+      signal: controller.signal,
+      // Candidates arrive over several seconds; show the best loop found so
+      // far rather than a spinner over an empty map.
+      onPartial: (partialRoutes) => {
+        if (!isCurrent()) return;
+        setRoutes(partialRoutes);
+        // Something is on the map now — swap the blocking overlay for the
+        // unobtrusive indicator.
+        setLoading(false);
+        setSidebarOpen(false);
+      },
     });
+
+    if (!isCurrent() || result.aborted) return;
+
     if (result.error) {
       setError(result.error);
     } else {
       setRoutes(result.routes);
-      setRouteIdx(0);
       setSidebarOpen(false);
     }
     setLoading(false);
+    setRefining(false);
   }, [startPoint, areaPoint, distance, routingParams]);
 
   const handleSearchInArea = useCallback(() => {
@@ -220,12 +277,19 @@ export default function App() {
     rememberMapHintsSeen();
   }, []);
 
-  // The hints are a one-time introduction, so displaying them counts as
-  // having shown them — otherwise they reappear on every app open until the
-  // user happens to hit the dismiss button.
+  // The hints are a one-time introduction: they persist as "seen" when the
+  // user dismisses them, or once they have been on screen long enough to read,
+  // whichever comes first. Marking them seen the instant they rendered also
+  // stopped them reappearing forever, but it left the dismiss button racing a
+  // flag that was already written — a control that did nothing.
   const mapHintsVisible = showMapHints && !!currentRoute;
   useEffect(() => {
-    if (mapHintsVisible) rememberMapHintsSeen();
+    if (!mapHintsVisible) return undefined;
+    const id = setTimeout(() => {
+      setShowMapHints(false);
+      rememberMapHintsSeen();
+    }, MAP_HINTS_VISIBLE_MS);
+    return () => clearTimeout(id);
   }, [mapHintsVisible]);
 
   const edgeSwipe = useEdgeSwipe(useCallback(() => setSidebarOpen(true), []));
@@ -271,7 +335,7 @@ export default function App() {
           onLitToggle={setWellLit}
           onElevationChange={setElevationBias}
           onGenerate={handleGenerate}
-          loading={loading}
+          loading={loading || refining}
           onClose={() => setSidebarOpen(false)}
         />
       </aside>
@@ -311,6 +375,7 @@ export default function App() {
             onMapDrag={handleMapDrag}
             onWaypointDrag={handleWaypointDrag}
             onRouteDoubleClick={handleRouteDoubleClick}
+            onLocateError={setError}
           />
 
           <SearchAreaBanner
@@ -322,6 +387,7 @@ export default function App() {
           {mapHintsVisible && <MapInteractionHints onDismiss={handleDismissMapHints} />}
 
           {loading && <LoadingOverlay />}
+          {!loading && refining && <RefiningIndicator count={routes.length} />}
           {!currentRoute && !loading && <MapEmptyHint hasStartPoint={!!startPoint} />}
           <MapStatusToast message={error} variant="error" onDismiss={() => setError(null)} />
         </div>
@@ -340,11 +406,16 @@ export default function App() {
               onClear={handleClearRoutes}
             />
             <div className="flex-1">
-              <ElevationChart
-                points={currentRoute.points}
-                segments={currentRoute.segments ?? []}
-                onHoverPoint={setHoverPoint}
-              />
+              {/* No spinner: the chunk resolves in a frame or two on any
+                  connection that just fetched a route, and a flash of
+                  placeholder is worse than an empty strip. */}
+              <Suspense fallback={null}>
+                <ElevationChart
+                  points={currentRoute.points}
+                  segments={currentRoute.segments ?? []}
+                  onHoverPoint={setHoverPoint}
+                />
+              </Suspense>
             </div>
           </div>
         )}
