@@ -10,6 +10,31 @@ export function isIslandError(message = '') {
 }
 
 /**
+ * brouter.de rate-limits with 403 (and 429 if it ever switches). This has to be
+ * told apart from every other failure: an expired or unknown custom profile
+ * answers 500, which IS worth re-uploading and retrying, whereas retrying a
+ * rate-limited request — let alone re-uploading the profile first — sends more
+ * traffic at the exact moment the server is asking for less.
+ */
+export function isRateLimited(err) {
+  return err?.status === 403 || err?.status === 429;
+}
+
+/** An unknown/expired uploaded profile — the one case a re-upload fixes. */
+function isStaleProfileError(err) {
+  return err?.status === 500;
+}
+
+/**
+ * The caller walked away — a new generation started, or the route was cleared.
+ * Distinct from a timeout: nothing failed, the answer just stopped mattering,
+ * so callers must not surface it as an error.
+ */
+export function isAbortError(err) {
+  return err?.aborted === true;
+}
+
+/**
  * Standard-profile fallback, used only when the custom profile upload or a
  * request with it fails (brouter.de purges uploaded profiles eventually).
  */
@@ -66,24 +91,45 @@ function getCustomProfileId(kind) {
   return promise;
 }
 
-async function requestRoute(params) {
+async function requestRoute(params, signal) {
+  if (signal?.aborted) {
+    const abort = new Error('Route request cancelled');
+    abort.aborted = true;
+    throw abort;
+  }
+
+  // One controller fires for either reason — the per-request timeout, or the
+  // caller abandoning the whole generation — and the two are told apart after
+  // the fact by asking the caller's signal which one it was.
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), BROUTER_TIMEOUT_MS);
+  const relayAbort = () => controller.abort();
+  signal?.addEventListener('abort', relayAbort, { once: true });
+
   let res;
   try {
     res = await fetch(`${BROUTER_BASE}?${params}`, { signal: controller.signal });
   } catch (err) {
     if (err?.name === 'AbortError') {
+      if (signal?.aborted) {
+        const abort = new Error('Route request cancelled');
+        abort.aborted = true;
+        throw abort;
+      }
       throw new Error('BRouter request timed out');
     }
     throw err;
   } finally {
     clearTimeout(timeoutId);
+    signal?.removeEventListener('abort', relayAbort);
   }
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text.trim().slice(0, 300) || `BRouter error ${res.status}`);
+    const error = new Error(text.trim().slice(0, 300) || `BRouter error ${res.status}`);
+    // Callers branch on the status, so it has to survive as more than prose.
+    error.status = res.status;
+    throw error;
   }
 
   const geojson = await res.json();
@@ -107,6 +153,7 @@ export async function fetchRoute({
   wellLit = false,
   elevationBias = 50,
   alternativeidx = 0,
+  signal,
 }) {
   const lonlats = waypoints
     .map(([lat, lng]) => `${lng.toFixed(6)},${lat.toFixed(6)}`)
@@ -147,28 +194,31 @@ export async function fetchRoute({
     return params;
   };
 
-  // Try the custom profile; if the request fails because the uploaded
-  // profile expired server-side, re-upload once and retry. Routing errors
-  // (islands, unreachable points) are rethrown untouched.
+  // Try the custom profile. Only two failures are worth spending more requests
+  // on: an expired uploaded profile (re-upload once and retry) and a genuinely
+  // broken custom-profile path (fall back to a standard profile). Routing
+  // errors and rate limiting are rethrown untouched — retrying either one just
+  // burns quota, and under a 403 that is precisely the wrong response.
   try {
     const profileId = await getCustomProfileId(kind);
     try {
-      return await requestRoute(buildCustomParams(profileId));
+      return await requestRoute(buildCustomParams(profileId), signal);
     } catch (err) {
-      if (isIslandError(err.message)) throw err;
+      if (isIslandError(err.message) || isRateLimited(err) || isAbortError(err)) throw err;
+      if (!isStaleProfileError(err)) throw err;
       customProfileIds.delete(kind);
       const freshId = await getCustomProfileId(kind);
-      return await requestRoute(buildCustomParams(freshId));
+      return await requestRoute(buildCustomParams(freshId), signal);
     }
   } catch (err) {
-    if (isIslandError(err.message)) throw err;
+    if (isIslandError(err.message) || isRateLimited(err) || isAbortError(err)) throw err;
     // Custom-profile path is down entirely — fall back to standard profiles.
     const profile = selectFallbackProfile(mode, bikeType, surfacePref, wellLit);
     const params = baseParams(lonlats, profile, alternativeidx);
     if (UPHILL_TUNABLE_PROFILES.has(profile)) {
       params.set('profile:uphillcostfactor', uphillCostFactor(elevationBias));
     }
-    return requestRoute(params);
+    return requestRoute(params, signal);
   }
 }
 
