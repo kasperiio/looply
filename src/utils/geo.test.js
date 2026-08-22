@@ -68,25 +68,38 @@ describe('calcAscentM', () => {
     expect(calcAscentM(at(0, 20, 0, 20))).toBeCloseTo(40, 5);
   });
 
-  // KNOWN SHORTFALL (see backlog S10): the hysteresis credits a rise only once
-  // it clears the threshold above the running low, so the tail of every climb —
-  // up to `thresholdM` metres — is never credited. The loss scales with the
-  // NUMBER of climbs, not their size: ten 10 m climbs report 90 m, not 100.
-  // Pinned here rather than fixed because HILLY_ASCENT_M_PER_KM in
-  // routeRanking.js is calibrated against this behaviour.
-  it('under-reports a steady climb by up to the threshold', () => {
+  it('credits a steady climb in full', () => {
     const steady = at(...Array.from({ length: 101 }, (_, i) => i));
-    expect(calcAscentM(steady)).toBe(99);
+    expect(calcAscentM(steady)).toBe(100);
   });
 
-  it('loses the tail of each climb on a rolling profile', () => {
+  // These two are the regression guard for the shortfall that used to make the
+  // error scale with the NUMBER of climbs rather than their size — worst on
+  // exactly the rolling terrain where the count is highest.
+  it('credits every climb of a rolling profile in full', () => {
     const rolling = [];
     for (let k = 0; k < 10; k++) {
       for (let i = 0; i <= 10; i++) rolling.push(i);
       for (let i = 10; i >= 0; i--) rolling.push(i);
     }
-    // True ascent is 100 m across ten 10 m climbs.
-    expect(calcAscentM(at(...rolling))).toBe(90);
+    expect(calcAscentM(at(...rolling))).toBe(100); // ten 10 m climbs
+  });
+
+  it('credits large climbs in full too', () => {
+    const alpine = [];
+    for (let k = 0; k < 3; k++) {
+      for (let i = 0; i <= 200; i += 2) alpine.push(i);
+      for (let i = 200; i >= 0; i -= 2) alpine.push(i);
+    }
+    expect(calcAscentM(at(...alpine))).toBe(600); // three 200 m climbs
+  });
+
+  it('still rejects noise that never resolves into a climb', () => {
+    // A sawtooth entirely inside the threshold must stay at zero however long
+    // it runs — this is the property the whole hysteresis exists to protect.
+    const sawtooth = [];
+    for (let k = 0; k < 200; k++) sawtooth.push(k % 2 === 0 ? 10 : 11.5);
+    expect(calcAscentM(at(...sawtooth))).toBe(0);
   });
 
   it('discards an uncredited rise once the track drops below the baseline', () => {

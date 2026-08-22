@@ -32,6 +32,18 @@ const ASCENT_HYSTERESIS_M = 2;
  * reproducible from the downloaded GPX — BRouter's own `filtered ascend`
  * property is a routing-cost heuristic (~10 m hysteresis) that swallows real
  * climbs and cannot be derived from the track.
+ *
+ * A climb is banked when the track drops more than the threshold BELOW the
+ * running high, which is what confirms the high was a real summit rather than
+ * a sampling spike — and at the end of the track, since a route can finish
+ * mid-climb.
+ *
+ * Crediting each rise as soon as it cleared the threshold (the previous
+ * approach) looked equivalent but silently discarded the last few metres of
+ * every climb: the remainder below the threshold was never banked, so the
+ * shortfall scaled with the NUMBER of climbs rather than their size. Ten 10 m
+ * climbs reported 90 m, which is worst exactly on the rolling terrain where
+ * the number matters most.
  */
 export function calcAscentM(points, thresholdM = ASCENT_HYSTERESIS_M) {
   if (!points || points.length < 2) return 0;
@@ -44,16 +56,23 @@ export function calcAscentM(points, thresholdM = ASCENT_HYSTERESIS_M) {
     const ele = points[i][2] ?? 0;
     if (ele > high) {
       high = ele;
-      if (high - low > thresholdM) {
-        ascent += high - low;
-        low = high;
-      }
-    } else if (ele < low) {
-      // Dropping below the baseline discards any uncredited rise as noise.
+    } else if (ele < high - thresholdM) {
+      // Confirmed descent from `high`: bank the climb that led up to it.
+      if (high - low > thresholdM) ascent += high - low;
       low = ele;
       high = ele;
     }
+    // Between those: within the threshold below the high, i.e. noise.
+
+    // `low` must keep tracking the true bottom regardless of which branch ran.
+    // Resetting it only on a confirmed descent stranded it partway down —
+    // the last few metres of each valley went uncounted, so the NEXT climb
+    // was measured from too high a base.
+    if (ele < low) low = ele;
   }
+
+  // The track can simply end partway up a climb.
+  if (high - low > thresholdM) ascent += high - low;
 
   return ascent;
 }

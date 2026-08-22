@@ -86,6 +86,15 @@ function routeDistanceToPointKm(route, point) {
 // against calcAscentM over real routes: alpine ~24 m/km, forest trails ~17,
 // flat city ~6. Was 18 when ascent came from BRouter's filtered value, whose
 // scale differs non-linearly (it suppresses flat terrain far more than steep).
+//
+// Re-checked after calcAscentM was fixed to stop dropping the tail of every
+// climb. Measured on real BRouter routes, old vs new: Cambridge 2.2 -> 2.5,
+// Helsinki 5.2 -> 5.6, Nuuksio forest 17.8 -> 18.8, Innsbruck 35.8 -> 35.6,
+// Chamonix 72.8 -> 73.2 m/km. The correction lands almost entirely on flat and
+// rolling ground, where many small climbs each lost their tail; hilly routes
+// have few, large climbs and moved by under 1%. Since this constant is anchored
+// at the hilly end, it needs no adjustment — 25 still means the same terrain it
+// meant before.
 const HILLY_ASCENT_M_PER_KM = 25;
 // Candidates further off target than this fraction are dropped before
 // scoring (unless that would leave fewer than two).
