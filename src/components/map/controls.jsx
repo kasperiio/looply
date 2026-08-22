@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useMapEvents, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { LOCATE_SVG } from './icons.js';
+import { requestPosition } from '../../utils/geolocate.js';
 
 export function ClickHandler({ onMapClick }) {
   useMapEvents({
@@ -113,26 +114,14 @@ export function LocateControl({ onMapClick, onError }) {
 
       L.DomEvent.disableClickPropagation(btn);
       L.DomEvent.on(btn, 'click', () => {
-        if (!navigator.geolocation) {
-          onError?.('This browser cannot share your location.');
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          ({ coords }) => {
-            const { latitude: lat, longitude: lng } = coords;
+        // Shared with the empty state's prompt, so both report a denied or
+        // timed-out permission the same way instead of failing silently.
+        requestPosition()
+          .then(({ lat, lng }) => {
             map.flyTo([lat, lng], 15, { duration: 1.2 });
             onMapClick(lat, lng);
-          },
-          // Without this the button is silent on a denied or timed-out
-          // permission — nothing moves and there is no way to tell why.
-          (err) => {
-            onError?.(
-              err?.code === 1
-                ? 'Location permission denied. Search for a place, or click the map to set a start point.'
-                : 'Could not get your location. Search for a place, or click the map to set a start point.'
-            );
-          }
-        );
+          })
+          .catch((err) => onError?.(err.message));
       });
 
       return container;

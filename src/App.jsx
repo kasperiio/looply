@@ -15,6 +15,7 @@ import { readUrlParams, writeUrlParams } from './utils/urlState';
 import { warmupProfile } from './utils/brouter';
 import { initServiceWorker } from './utils/swUpdate';
 import { insertWaypointByRouteOrder } from './utils/routeEditing';
+import { requestPosition } from './utils/geolocate.js';
 import { clampDistanceKm } from './constants/distance.js';
 import { useEdgeSwipe } from './hooks/useEdgeSwipe.js';
 import { generateRoutes } from './services/routeGenerator';
@@ -65,6 +66,7 @@ export default function App() {
   // blocking overlay is right; `refining` means a usable loop is already shown
   // and better candidates are still landing behind it.
   const [refining, setRefining] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState(null);
 
   // Every generation gets a number. Only the newest one is allowed to write
@@ -96,25 +98,6 @@ export default function App() {
       .catch(() => setStartLabel(`${init.lat.toFixed(5)}, ${init.lng.toFixed(5)}`));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!init.lat && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        ({ coords }) => {
-          const lat = coords.latitude;
-          const lng = coords.longitude;
-          setStartPoint({ lat, lng });
-          // With a start point in hand the next step is picking a distance, so
-          // surface the settings drawer (a no-op on desktop, where it is pinned).
-          setSidebarOpen(true);
-          reverseGeocode(lat, lng)
-            .then(setStartLabel)
-            .catch(() => setStartLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`));
-        },
-        () => {}
-      );
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Debounced: dragging the distance or terrain slider fires this on every
   // tick, and replaceState is not free. Nothing reads the URL back mid-drag,
   // so it only has to catch up once the user settles.
@@ -137,6 +120,33 @@ export default function App() {
       setStartLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     }
   }, [currentRoute]);
+
+  // Only ever reached from the empty state's "Use my location" button. Asking
+  // on mount put a bare permission dialog in front of a first-time visitor,
+  // which is both a poor introduction and the fastest way to earn a permanent
+  // "deny" for the origin — after which the feature cannot be offered again.
+  const handleUseMyLocation = useCallback(async () => {
+    setLocating(true);
+    setError(null);
+    try {
+      const { lat, lng } = await requestPosition();
+      setStartPoint({ lat, lng });
+      setAreaPoint(null);
+      setMapDragCenter(null);
+      // With a start point in hand the next step is picking a distance, so
+      // surface the settings drawer (a no-op on desktop, where it is pinned).
+      setSidebarOpen(true);
+      try {
+        setStartLabel(await reverseGeocode(lat, lng));
+      } catch {
+        setStartLabel(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLocating(false);
+    }
+  }, []);
 
   const handleStartSearch = useCallback((lat, lng, label) => {
     setStartPoint({ lat, lng });
@@ -388,7 +398,13 @@ export default function App() {
 
           {loading && <LoadingOverlay />}
           {!loading && refining && <RefiningIndicator count={routes.length} />}
-          {!currentRoute && !loading && <MapEmptyHint hasStartPoint={!!startPoint} />}
+          {!currentRoute && !loading && (
+            <MapEmptyHint
+              hasStartPoint={!!startPoint}
+              onUseMyLocation={handleUseMyLocation}
+              locating={locating}
+            />
+          )}
           <MapStatusToast message={error} variant="error" onDismiss={() => setError(null)} />
         </div>
 
