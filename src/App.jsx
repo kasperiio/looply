@@ -16,6 +16,7 @@ import { warmupProfile } from './utils/brouter';
 import { initServiceWorker } from './utils/swUpdate';
 import { insertWaypointByRouteOrder } from './utils/routeEditing';
 import { requestPosition } from './utils/geolocate.js';
+import { clearRoutes as clearStoredRoutes, loadRoutes, routeSetSignature, saveRoutes } from './utils/routeStorage.js';
 import { clampDistanceKm } from './constants/distance.js';
 import { useEdgeSwipe } from './hooks/useEdgeSwipe.js';
 import { generateRoutes } from './services/routeGenerator';
@@ -56,8 +57,29 @@ export default function App() {
   });
   const [elevationBias, setElevationBias] = useState(init.elevationBias);
 
-  const [routes, setRoutes] = useState([]);
-  const [routeIdx, setRouteIdx] = useState(0);
+  // Restored synchronously on first render: regenerating costs ~27 requests
+  // against a rate-limited public service, so a reload must not silently throw
+  // the previous result away.
+  const [restored] = useState(() =>
+    loadRoutes(
+      routeSetSignature({
+        startPoint: init.lat != null && init.lng != null ? { lat: init.lat, lng: init.lng } : null,
+        areaPoint:
+          init.areaLat != null && init.areaLng != null
+            ? { lat: init.areaLat, lng: init.areaLng }
+            : null,
+        distance: init.distance,
+        mode: init.mode,
+        bikeType: init.bikeType,
+        surfacePref: init.surfacePref,
+        wellLit: init.wellLit,
+        elevationBias: init.elevationBias,
+      })
+    )
+  );
+
+  const [routes, setRoutes] = useState(restored?.routes ?? []);
+  const [routeIdx, setRouteIdx] = useState(restored?.routeIdx ?? 0);
   const currentRoute = routes[routeIdx] ?? null;
 
   const [hoverPoint, setHoverPoint] = useState(null);
@@ -97,6 +119,23 @@ export default function App() {
       .then(setStartLabel)
       .catch(() => setStartLabel(`${init.lat.toFixed(5)}, ${init.lng.toFixed(5)}`));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Debounced for the same reason as the URL write below, and additionally
+  // because progressive publishing updates `routes` several times per
+  // generation — only the settled result is worth serializing.
+  useEffect(() => {
+    if (loading || refining) return undefined;
+    const signature = routeSetSignature({
+      startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias,
+    });
+    // Nothing on screen is not the same as the user discarding their work:
+    // opening the app at a different distance must not delete the set saved
+    // under the old one, or switching back would mean regenerating from
+    // scratch. Only the Clear button drops the stored set.
+    if (routes.length === 0) return undefined;
+    const id = setTimeout(() => saveRoutes(signature, routes, routeIdx), 400);
+    return () => clearTimeout(id);
+  }, [routes, routeIdx, loading, refining, startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias]);
 
   // Debounced: dragging the distance or terrain slider fires this on every
   // tick, and replaceState is not free. Nothing reads the URL back mid-drag,
@@ -172,6 +211,7 @@ export default function App() {
     // Abandon anything still in flight, and make sure its result cannot land.
     abortRef.current?.abort();
     generationRef.current += 1;
+    clearStoredRoutes();
     setLoading(false);
     setRefining(false);
     setRoutes([]);
