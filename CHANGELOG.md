@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.0](https://github.com/kasperiio/looply/compare/v1.7.0...v1.8.0) (2026-08-22)
+
+
+### Features
+
+* **a11y:** give the controls real semantics and a visible focus ring ([fcf99f8](https://github.com/kasperiio/looply/commit/fcf99f8631d2bb6a9ca164618ba1aacbed2205e4))
+* **app:** keep generated routes across a reload ([72fc8d2](https://github.com/kasperiio/looply/commit/72fc8d25da973628b69abc52b89ee2b1712385d8))
+* **app:** show routes as they arrive, and cancel superseded runs ([e1e2e35](https://github.com/kasperiio/looply/commit/e1e2e35d3257cea857b56b2de154800a5c7e52f8))
+* **seo:** make the page findable and shareable ([16b1117](https://github.com/kasperiio/looply/commit/16b1117e6f91d8289f7633f7c9b9130bd28392df))
+
+
+### Bug Fixes
+
+* **build:** bundle Leaflet's CSS instead of fetching it from unpkg ([95e5f5e](https://github.com/kasperiio/looply/commit/95e5f5ecf18732011febf26731bb0e6ecd78658f))
+* **map:** refit bounds on resize and report geolocation failures ([d0dd51b](https://github.com/kasperiio/looply/commit/d0dd51bfb842206a912a133ab212f76e7ca54dcd))
+* **routing:** stop amplifying brouter.de rate limits, halve requests ([41d7a82](https://github.com/kasperiio/looply/commit/41d7a82608bb834831a637f6637644eaa84be0aa))
+* **search:** drop the User-Agent header Nominatim never received ([32ecd54](https://github.com/kasperiio/looply/commit/32ecd548811cf04e6f673587286ca8b77722d314))
+* **stats:** stop under-reporting ascent on rolling terrain ([78ad926](https://github.com/kasperiio/looply/commit/78ad926dafa6fc49c2d2f4f302fba9b772279408))
+* **ui:** stop the stats bar truncating its own values ([dd9a794](https://github.com/kasperiio/looply/commit/dd9a794125d17060caf311c176fc425ec10f3434))
+* **ux:** ask before requesting location instead of prompting on load ([313d4b6](https://github.com/kasperiio/looply/commit/313d4b6219337748eaf26d31bae2626f0499e24d))
+
+
+### Performance Improvements
+
+* **routing:** make spur pruning a single pass, fix nearest-point bias ([8ac9637](https://github.com/kasperiio/looply/commit/8ac9637424d4379ed1381021e05bd926c79dccc3))
+
 ## [1.7.0](https://github.com/kasperiio/looply/compare/v1.6.2...v1.7.0) (2026-08-10)
 
 
