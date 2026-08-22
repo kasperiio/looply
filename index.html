@@ -18,11 +18,14 @@
     <!-- Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- Fonts & map CSS -->
+    <!-- Fonts. Inter is a progressive enhancement: index.css falls back to
+         system-ui, so a blocked or slow Google Fonts still renders correctly.
+         Leaflet's CSS is NOT loaded here — it is imported in main.jsx so it
+         ships in the bundle, pinned to the version in package-lock.json,
+         instead of being fetched from a CDN at runtime. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   </head>
   <body>
     <div id="root"></div>
