@@ -31,14 +31,55 @@ export function DisableDoubleClickZoom() {
   return null;
 }
 
+const FIT_PADDING = [40, 40];
+
 export function FlyToBounds({ routePoints }) {
   const map = useMap();
+  const boundsRef = useRef(null);
+
   useEffect(() => {
-    if (routePoints && routePoints.length > 1) {
-      const bounds = L.latLngBounds(routePoints.map(([lat, lng]) => [lat, lng]));
-      map.flyToBounds(bounds, { padding: [40, 40], duration: 1.2 });
+    if (!routePoints || routePoints.length <= 1) {
+      boundsRef.current = null;
+      return;
     }
+    const bounds = L.latLngBounds(routePoints.map(([lat, lng]) => [lat, lng]));
+    boundsRef.current = bounds;
+    map.flyToBounds(bounds, { padding: FIT_PADDING, duration: 1.2 });
   }, [routePoints, map]);
+
+  // The container changes size on rotation, when mobile browser chrome hides,
+  // and when the sidebar switches between overlay and pinned at the md
+  // breakpoint. Leaflet has to be told, and a route fitted to the old size is
+  // left cropped — so refit whatever is currently on screen.
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return undefined;
+
+    const container = map.getContainer();
+    let last = { w: container.clientWidth, h: container.clientHeight };
+    let frame = null;
+
+    const observer = new ResizeObserver(() => {
+      const { clientWidth: w, clientHeight: h } = container;
+      // ResizeObserver fires once on observe; ignore that and any no-op.
+      if (w === last.w && h === last.h) return;
+      last = { w, h };
+
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        map.invalidateSize();
+        if (boundsRef.current) {
+          map.fitBounds(boundsRef.current, { padding: FIT_PADDING });
+        }
+      });
+    });
+
+    observer.observe(container);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [map]);
+
   return null;
 }
 
@@ -54,7 +95,7 @@ export function FlyToStart({ startPoint, hasRoute }) {
   return null;
 }
 
-export function LocateControl({ onMapClick }) {
+export function LocateControl({ onMapClick, onError }) {
   const map = useMap();
   useEffect(() => {
     const ctrl = L.control({ position: 'topleft' });
@@ -72,12 +113,26 @@ export function LocateControl({ onMapClick }) {
 
       L.DomEvent.disableClickPropagation(btn);
       L.DomEvent.on(btn, 'click', () => {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(({ coords }) => {
-          const { latitude: lat, longitude: lng } = coords;
-          map.flyTo([lat, lng], 15, { duration: 1.2 });
-          onMapClick(lat, lng);
-        });
+        if (!navigator.geolocation) {
+          onError?.('This browser cannot share your location.');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => {
+            const { latitude: lat, longitude: lng } = coords;
+            map.flyTo([lat, lng], 15, { duration: 1.2 });
+            onMapClick(lat, lng);
+          },
+          // Without this the button is silent on a denied or timed-out
+          // permission — nothing moves and there is no way to tell why.
+          (err) => {
+            onError?.(
+              err?.code === 1
+                ? 'Location permission denied. Search for a place, or click the map to set a start point.'
+                : 'Could not get your location. Search for a place, or click the map to set a start point.'
+            );
+          }
+        );
       });
 
       return container;
@@ -85,7 +140,7 @@ export function LocateControl({ onMapClick }) {
 
     ctrl.addTo(map);
     return () => ctrl.remove();
-  }, [map, onMapClick]);
+  }, [map, onMapClick, onError]);
 
   return null;
 }
