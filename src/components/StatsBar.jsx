@@ -2,14 +2,19 @@ import { Route, TrendingUp, ChevronLeft, ChevronRight, Download, Trash2, Layers 
 
 function StatCard({ icon: Icon, label, value, accent, className = '' }) {
   return (
+    // The value is the whole point of the card, so it never shrinks below its
+    // own width: the icon is what gives way first. Between the md breakpoint
+    // (where the sidebar becomes pinned) and lg there is very little room, and
+    // the icon returning only at lg is what keeps "10.14 km" from becoming
+    // "10…".
     <div className={`flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-lg px-2 sm:px-3 py-2 flex-1 min-w-0 ${className}`}>
       <Icon
         size={14}
-        className={`hidden sm:block shrink-0 ${accent ? 'text-lime-400' : 'text-gray-500'}`}
+        className={`hidden sm:max-md:block lg:block shrink-0 ${accent ? 'text-lime-400' : 'text-gray-500'}`}
       />
       <div className="min-w-0">
-        <p className="text-gray-500 text-xs leading-none mb-0.5">{label}</p>
-        <p className={`font-semibold text-sm leading-none truncate ${accent ? 'text-lime-400' : 'text-gray-100'}`}>
+        <p className="text-gray-500 text-xs leading-none mb-0.5 truncate">{label}</p>
+        <p className={`font-semibold text-sm leading-none whitespace-nowrap ${accent ? 'text-lime-400' : 'text-gray-100'}`}>
           {value}
         </p>
       </div>
@@ -79,12 +84,15 @@ export default function StatsBar({
           label="Ascent"
           value={hasData ? `${Math.round(ascent)} m` : '—'}
         />
+        {/* Distance and ascent are what people act on; surface is context, so
+            it steps aside in the narrow band above md where the pinned sidebar
+            leaves the bar too little room for three stats. */}
         {surfaceText && (
           <StatCard
             icon={Layers}
             label="Surface"
             value={surfaceText}
-            className="hidden sm:flex"
+            className="hidden sm:max-md:flex lg:flex"
           />
         )}
         <RouteNav
