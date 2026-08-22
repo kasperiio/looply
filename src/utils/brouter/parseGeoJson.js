@@ -1,11 +1,22 @@
 import { haversineKm, calcRouteDistanceKm, calcAscentM } from '../geo.js';
 import { classifySegmentSurface, parseSurface } from './surface.js';
 
+/**
+ * Index of the route point closest to (lat, lng).
+ *
+ * Manhattan distance is enough here — this only ranks candidates, and the
+ * points are dense — but the longitude term has to be scaled by cos(lat) or a
+ * degree of longitude counts the same as a degree of latitude. At 60°N that is
+ * ~56 km judged against ~111 km, which biases every break toward whichever
+ * point differs in latitude rather than the one that is actually nearest.
+ */
 function nearestPointIndex(points, lat, lng) {
+  const lngScale = Math.cos((lat * Math.PI) / 180);
   let minD = Infinity;
   let idx = 0;
   for (let i = 0; i < points.length; i++) {
-    const d = Math.abs(points[i][0] - lat) + Math.abs(points[i][1] - lng);
+    const d =
+      Math.abs(points[i][0] - lat) + Math.abs(points[i][1] - lng) * lngScale;
     if (d < minD) {
       minD = d;
       idx = i;
@@ -27,30 +38,34 @@ function pruneSpurs(points) {
   const APEX_KM = 0.01; // pts[i−1] ≈ pts[i+1]: the path folds at i
   const MATCH_KM = 0.02; // outward/return legs must match this closely
 
-  let pts = points;
-  let changed = true;
+  const pts = [...points];
+  let i = 1;
 
-  while (changed) {
-    changed = false;
-    for (let i = 1; i < pts.length - 1; i++) {
-      if (haversineKm(pts[i - 1], pts[i + 1]) > APEX_KM) continue;
-
-      let k = 1;
-      while (
-        i - k - 1 >= 0 &&
-        i + k + 1 < pts.length &&
-        haversineKm(pts[i - k - 1], pts[i + k + 1]) <= MATCH_KM
-      ) {
-        k += 1;
-      }
-
-      // pts[i−k] ≈ pts[i+k] is the verified junction; keep the outward copy
-      // and drop everything through the returning copy so the path stays
-      // continuous.
-      pts = [...pts.slice(0, i - k + 1), ...pts.slice(i + k + 1)];
-      changed = true;
-      break;
+  // Single forward pass. Cutting a spur can only create a new fold at the
+  // junction it leaves behind — every index below that was already cleared and
+  // its neighbourhood is untouched — so the scan resumes there instead of
+  // restarting from the top. Restarting made this quadratic, which is real
+  // main-thread time on a long ride with many off-road waypoints.
+  while (i < pts.length - 1) {
+    if (haversineKm(pts[i - 1], pts[i + 1]) > APEX_KM) {
+      i += 1;
+      continue;
     }
+
+    let k = 1;
+    while (
+      i - k - 1 >= 0 &&
+      i + k + 1 < pts.length &&
+      haversineKm(pts[i - k - 1], pts[i + k + 1]) <= MATCH_KM
+    ) {
+      k += 1;
+    }
+
+    // pts[i−k] ≈ pts[i+k] is the verified junction; keep the outward copy
+    // and drop everything through the returning copy so the path stays
+    // continuous. That is the 2k points at i−k+1 … i+k.
+    pts.splice(i - k + 1, 2 * k);
+    i = Math.max(1, i - k);
   }
 
   return pts;
