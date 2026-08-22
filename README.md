@@ -35,6 +35,8 @@ npm run dev -- --port 5200
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
+| `npm test` | Run the test suite once (Vitest) |
+| `npm run test:watch` | Re-run tests on change |
 
 ## Releases
 
@@ -65,6 +67,12 @@ No backend or API keys required. The app calls these services from the browser:
 - [Overpass](https://overpass-api.de/) — trail nodes (trail surface mode)
 - Carto / OpenStreetMap — map tiles
 
+## Tests
+
+Tests live next to the code they cover as `*.test.js` and run in `lint`-adjacent
+CI. They target the pure geo, routing and parsing helpers — the code carrying
+subtle math that regresses silently.
+
 ## Project structure
 
 ```
@@ -76,3 +84,7 @@ src/
   constants/           # Shared surface styling tokens
 public/                # PWA manifest, favicon, service worker
 ```
+
+## License
+
+[MIT](LICENSE) — free to use, modify and redistribute, with attribution.
