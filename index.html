@@ -3,8 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Looply — Circular Route Planner</title>
-    <meta name="description" content="Generate circular running and cycling routes from any starting point." />
+
+    <!-- Intent-led, not brand-led: nobody searches "Looply" yet, but plenty of
+         people search for a way to get a loop back to where they started. -->
+    <title>Circular Running &amp; Cycling Route Generator | Looply</title>
+    <meta name="description" content="Generate circular running and cycling routes from your door. Pick a distance, surface and terrain — Looply loops you back to the start. Free, no signup." />
+
+    <!-- The app rewrites the query string as you change settings, so every
+         session would otherwise look like a separate URL to a crawler. -->
+    <link rel="canonical" href="https://looply.kasperi.io/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Looply" />
+    <meta property="og:locale" content="en" />
+    <meta property="og:url" content="https://looply.kasperi.io/" />
+    <meta property="og:title" content="Circular Running &amp; Cycling Route Generator" />
+    <meta property="og:description" content="Pick a distance, surface and terrain. Looply builds a loop that brings you back to where you started — and exports it as GPX." />
+    <meta property="og:image" content="https://looply.kasperi.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Looply — circular running and cycling routes from your door" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Circular Running &amp; Cycling Route Generator" />
+    <meta name="twitter:description" content="Pick a distance, surface and terrain. Looply builds a loop that brings you back to where you started — and exports it as GPX." />
+    <meta name="twitter:image" content="https://looply.kasperi.io/og-image.png" />
+    <meta name="twitter:image:alt" content="Looply — circular running and cycling routes from your door" />
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
@@ -21,14 +45,94 @@
     <!-- Fonts. Inter is a progressive enhancement: index.css falls back to
          system-ui, so a blocked or slow Google Fonts still renders correctly.
          Leaflet's CSS is NOT loaded here — it is imported in main.jsx so it
-         ships in the bundle, pinned to the version in package-lock.json,
-         instead of being fetched from a CDN at runtime. -->
+         ships in the bundle, pinned to the version in package-lock.json. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Looply",
+        "url": "https://looply.kasperi.io/",
+        "applicationCategory": "HealthAndFitnessApplication",
+        "operatingSystem": "Any (web browser)",
+        "browserRequirements": "Requires JavaScript",
+        "description": "Looply generates circular running and cycling routes from any starting point. Choose a target distance, surface and terrain, compare alternatives, and export the route as GPX.",
+        "featureList": [
+          "Circular route generation from any start point",
+          "Target distance from 1 to 100 km",
+          "Running and cycling, including gravel and MTB",
+          "Surface preference: road, mixed or unpaved",
+          "Well-lit street preference for running after dark",
+          "Flat to hilly terrain preference",
+          "Elevation profile and surface breakdown",
+          "GPX export"
+        ],
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR"
+        }
+      }
+    </script>
+
+    <style>
+      /* Styles the pre-hydration content below. Scoped to #looply-intro so it
+         cannot leak into the app, and matched to the app's dark theme so the
+         hand-off does not flash. */
+      #looply-intro {
+        max-width: 40rem;
+        margin: 0 auto;
+        padding: 12vh 1.5rem 2rem;
+        color: #9ca3af;
+        font-family: Inter, system-ui, sans-serif;
+        line-height: 1.6;
+      }
+      #looply-intro h1 { color: #fff; font-size: 1.9rem; line-height: 1.25; margin-bottom: .75rem; }
+      #looply-intro h2 { color: #e5e7eb; font-size: 1.05rem; margin: 1.5rem 0 .4rem; }
+      #looply-intro p, #looply-intro li { font-size: .95rem; }
+      #looply-intro ul { padding-left: 1.1rem; }
+      #looply-intro strong { color: #a3e635; font-weight: 600; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Everything inside #root is replaced the moment React mounts. It exists
+         because a crawler (and anyone whose JS failed) would otherwise be
+         served an empty div: the app's entire content is client-rendered, so
+         without this there is literally nothing on the page to read or rank. -->
+    <div id="root">
+      <div id="looply-intro">
+        <h1>Circular running and cycling routes from your door</h1>
+        <p>
+          <strong>Looply</strong> builds loop routes that start and finish in the
+          same place. Drop a pin or search an address, choose how far you want to
+          go, and it returns up to ten circular routes back to where you started —
+          with an elevation profile, a surface breakdown, and a GPX file for your
+          watch or head unit. Free, and no account needed.
+        </p>
+
+        <h2>What you can ask for</h2>
+        <ul>
+          <li><strong>A distance</strong> — anything from a 1 km shakeout to a 100 km ride.</li>
+          <li><strong>A surface</strong> — stick to asphalt, mix it up, or seek out dirt, gravel and footpaths.</li>
+          <li><strong>Well-lit streets</strong> — for running after dark, Looply prefers roads and paths that are actually lit.</li>
+          <li><strong>Flat or hilly</strong> — bias the route toward climbing or away from it.</li>
+          <li><strong>Road, gravel or MTB</strong> — cycling routes match the bike you are on.</li>
+        </ul>
+
+        <h2>Why loops</h2>
+        <p>
+          Out-and-back routes are half the scenery for the same effort, and an
+          A-to-B route leaves you stranded. Looply scores every candidate on how
+          much ground it retraces, so what you get back is a genuine loop rather
+          than a line folded in half.
+        </p>
+
+        <p>Loading the map…</p>
+      </div>
+    </div>
     <!-- The service worker is registered from the app (utils/swUpdate.js) so
          update detection can drive the refresh UI. -->
     <script type="module" src="/src/main.jsx"></script>
