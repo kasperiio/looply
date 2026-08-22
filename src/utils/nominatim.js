@@ -1,6 +1,12 @@
 /**
  * Nominatim geocoder with a 1-second debounce to respect rate limits.
  * https://nominatim.org/release-docs/develop/api/Search/
+ *
+ * Nominatim's usage policy wants requests identified by their application.
+ * From a browser that has to come from the Referer header: `User-Agent` is a
+ * forbidden header name, so `fetch` silently drops any value set for it and
+ * setting one only looks like compliance. Identification therefore relies on
+ * the page's own origin being sent as Referer.
  */
 
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
@@ -85,7 +91,7 @@ export async function searchPlace(query) {
   });
 
   const res = await fetch(`${NOMINATIM_BASE}/search?${params}`, {
-    headers: { 'Accept-Language': 'en', 'User-Agent': 'Looply/1.0' },
+    headers: { 'Accept-Language': 'en' },
   });
 
   if (!res.ok) throw new Error(`Nominatim error: ${res.status}`);
@@ -116,7 +122,7 @@ export async function reverseGeocode(lat, lng) {
   });
 
   const res = await fetch(`${NOMINATIM_BASE}/reverse?${params}`, {
-    headers: { 'Accept-Language': 'en', 'User-Agent': 'Looply/1.0' },
+    headers: { 'Accept-Language': 'en' },
   });
 
   if (!res.ok) throw new Error(`Nominatim reverse error: ${res.status}`);
