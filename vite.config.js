@@ -29,4 +29,10 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
   },
+  test: {
+    // The suite covers pure geo/routing/parsing helpers, none of which touch
+    // the DOM — the default node environment keeps runs fast.
+    environment: 'node',
+    include: ['src/**/*.test.js'],
+  },
 })

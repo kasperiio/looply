@@ -34,6 +34,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Test
+        run: npm test
+
       # Vite output is architecture-independent: build it once natively and
       # let the Docker step assemble per-arch images with pure COPY layers.
       # No QEMU, no emulated npm — multi-arch assembly takes seconds.
