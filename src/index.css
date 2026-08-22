@@ -10,6 +10,43 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* There was no focus styling anywhere, so keyboard users had no idea where
+   they were. :focus-visible rather than :focus, so a mouse click does not
+   leave a ring behind. :where() keeps specificity at zero — any component
+   that needs a different treatment can still override it without !important. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #a3e635;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Range thumbs do not inherit the outline above in every engine. */
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #a3e635;
+  outline-offset: 2px;
+}
+input[type='range']:focus-visible::-moz-range-thumb {
+  outline: 2px solid #a3e635;
+  outline-offset: 2px;
+}
+
+/* Leaflet's own controls sit on the map, where a 2px offset ring clips
+   against the tile edge. */
+.leaflet-control a:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 html, body, #root {
   height: 100%;
   /* Mobile browsers report 100vh as the height with the URL bar collapsed,

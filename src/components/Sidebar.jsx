@@ -6,7 +6,9 @@ import {
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
 import { MIN_DISTANCE_KM, maxDistanceKm } from '../constants/distance.js';
 import Toggle from './Toggle.jsx';
+import OptionGroup from './OptionGroup.jsx';
 import StartPointSearch from './StartPointSearch.jsx';
+import { terrainLabel } from '../constants/terrain.js';
 
 const SURFACE_OPTIONS = [
   { value: 'paved', label: 'Road', description: 'Asphalt & paved surfaces', emoji: '🛣️' },
@@ -20,28 +22,10 @@ const BIKE_TYPE_OPTIONS = [
   { value: 'mtb', label: 'MTB', description: 'Singletrack & technical trails', emoji: '⛰️' },
 ];
 
-function OptionGrid({ options, selected, onSelect }) {
-  return (
-    <div className="grid grid-cols-3 gap-1.5">
-      {options.map(({ value, label, description, emoji }) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => onSelect(value)}
-          title={description}
-          className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-lg border text-xs font-medium transition-all ${
-            selected === value
-              ? 'bg-lime-400/10 border-lime-400/40 text-lime-300'
-              : 'bg-gray-900/60 border-gray-800 text-gray-500 hover:border-gray-700 hover:text-gray-300'
-          }`}
-        >
-          <span className="text-sm leading-none">{emoji}</span>
-          <span className="mt-0.5">{label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
+const ACTIVITY_OPTIONS = [
+  { value: 'running', label: 'Running', icon: Footprints },
+  { value: 'cycling', label: 'Cycling', icon: Bike },
+];
 
 export default function Sidebar({
   startLabel,
@@ -97,16 +81,19 @@ export default function Sidebar({
       <StartPointSearch startLabel={startLabel} onStartSearch={onStartSearch} />
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-          <Navigation size={11} className="text-lime-400" /> Target Distance
+        <label htmlFor="looply-distance" className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+          <Navigation size={11} className="text-lime-400" aria-hidden="true" /> Target Distance
           <span className="ml-auto text-lime-400 font-semibold">{distance} km</span>
         </label>
         <input
+          id="looply-distance"
           type="range"
           min={MIN_DISTANCE_KM}
           max={maxDistanceKm(mode)}
           step={0.5}
           value={distance}
+          /* Without this a screen reader announces the bare number "10". */
+          aria-valuetext={`${distance} kilometres`}
           onChange={(e) => onDistanceChange(parseFloat(e.target.value))}
           className="w-full h-1.5 rounded-full appearance-none bg-gray-800 cursor-pointer"
         />
@@ -117,37 +104,35 @@ export default function Sidebar({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-400">Activity</label>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            ['running', Footprints, 'Running'],
-            ['cycling', Bike, 'Cycling'],
-          ].map(([m, Icon, label]) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => onModeChange(m)}
-              className={`flex items-center justify-center gap-2 py-2 rounded-lg border text-xs font-medium transition-all ${
-                mode === m
-                  ? 'bg-lime-400/10 border-lime-400/40 text-lime-300'
-                  : 'bg-gray-900/60 border-gray-800 text-gray-500 hover:border-gray-700'
-              }`}
-            >
-              <Icon size={13} /> {label}
-            </button>
-          ))}
-        </div>
+        <span className="text-xs font-medium text-gray-400">Activity</span>
+        <OptionGroup
+          label="Activity"
+          options={ACTIVITY_OPTIONS}
+          selected={mode}
+          onSelect={onModeChange}
+          columns={2}
+        />
       </div>
 
       {mode === 'cycling' ? (
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-400">Bike</label>
-          <OptionGrid options={BIKE_TYPE_OPTIONS} selected={bikeType} onSelect={onBikeTypeChange} />
+          <span className="text-xs font-medium text-gray-400">Bike</span>
+          <OptionGroup
+            label="Bike type"
+            options={BIKE_TYPE_OPTIONS}
+            selected={bikeType}
+            onSelect={onBikeTypeChange}
+          />
         </div>
       ) : (
         <div className="space-y-1.5">
-          <label className="text-xs font-medium text-gray-400">Surface</label>
-          <OptionGrid options={SURFACE_OPTIONS} selected={surfacePref} onSelect={onSurfaceChange} />
+          <span className="text-xs font-medium text-gray-400">Surface</span>
+          <OptionGroup
+            label="Surface preference"
+            options={SURFACE_OPTIONS}
+            selected={surfacePref}
+            onSelect={onSurfaceChange}
+          />
         </div>
       )}
 
@@ -162,18 +147,19 @@ export default function Sidebar({
       </div>
 
       <div className="space-y-1.5">
-        <label className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-          <MoveHorizontal size={11} className="text-lime-400" /> Terrain
-          <span className="ml-auto text-gray-500 text-[10px]">
-            {elevationBias < 33 ? 'Flat' : elevationBias < 67 ? 'Mixed' : 'Hilly'}
-          </span>
+        <label htmlFor="looply-terrain" className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
+          <MoveHorizontal size={11} className="text-lime-400" aria-hidden="true" /> Terrain
+          <span className="ml-auto text-gray-500 text-[10px]">{terrainLabel(elevationBias)}</span>
         </label>
         <input
+          id="looply-terrain"
           type="range"
           min={0}
           max={100}
           step={1}
           value={elevationBias}
+          /* "50" means nothing spoken aloud; "Mixed" is the actual setting. */
+          aria-valuetext={terrainLabel(elevationBias)}
           onChange={(e) => onElevationChange(parseInt(e.target.value, 10))}
           className="w-full h-1.5 rounded-full appearance-none bg-gray-800 cursor-pointer"
         />

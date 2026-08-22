@@ -49,6 +49,12 @@ export default function RouteLayers({
           position={[wp.lat, wp.lng]}
           icon={waypointIcon}
           draggable
+          // Leaflet makes markers keyboard-focusable, so without a name these
+          // are a row of anonymous buttons in the accessibility tree. Naming
+          // them does not make them draggable by keyboard — that is a separate
+          // piece of work — but it does say what they are.
+          title={`Route waypoint ${idx + 1} of ${waypoints.length} — drag to reshape`}
+          alt={`Route waypoint ${idx + 1} of ${waypoints.length}`}
           eventHandlers={{
             dragend: (e) => {
               const pos = e.target.getLatLng();
@@ -74,7 +80,12 @@ export default function RouteLayers({
       )}
 
       {startPoint && (
-        <Marker position={[startPoint.lat, startPoint.lng]} icon={startIcon} />
+        <Marker
+          position={[startPoint.lat, startPoint.lng]}
+          icon={startIcon}
+          title="Start and finish point"
+          alt="Start and finish point"
+        />
       )}
     </>
   );
