@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/kasperiio/looply/compare/v1.8.0...v1.8.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* **map:** authenticate CARTO basemap requests with an API key ([cc7454c](https://github.com/kasperiio/looply/commit/cc7454c43894f38aacf80d9c9faf41c4c95e488b))
+
 ## [1.8.0](https://github.com/kasperiio/looply/compare/v1.7.0...v1.8.0) (2026-08-22)
 
 
