@@ -24,6 +24,10 @@ RUN npm ci --legacy-peer-deps
 # --chown so a host-built dist/ in the context stays writable for Vite's
 # out-dir cleanup (the image runs as the non-root node user)
 COPY --chown=node:node . .
+
+# Vite inlines VITE_* vars at build time, so the key must be a build arg
+ARG VITE_CARTO_KEY
+ENV VITE_CARTO_KEY=$VITE_CARTO_KEY
 RUN npm run build
 
 FROM runtime-base AS full

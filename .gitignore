@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+
+# env files hold the CARTO key; .env.example is the committed template
+.env
+.env.*
+!.env.example
 response.json
 
 # Editor directories and files

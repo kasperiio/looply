@@ -9,6 +9,13 @@ import {
 } from './map/controls.jsx';
 import RouteLayers from './map/RouteLayers.jsx';
 
+// CARTO basemaps require an API key since 2026 — without one the tiles are
+// served with an "API KEY REQUIRED" watermark. Key is free: carto.com/basemaps/apikey
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY;
+const TILE_URL = `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png${
+  CARTO_KEY ? `?key=${CARTO_KEY}` : ''
+}`;
+
 export default function MapView({
   startPoint,
   routePoints,
@@ -40,7 +47,7 @@ export default function MapView({
       doubleClickZoom={false}
     >
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        url={TILE_URL}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
         maxZoom={20}
       />
