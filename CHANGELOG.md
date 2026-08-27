@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/kasperiio/looply/compare/v1.8.1...v1.9.0) (2026-08-27)
+
+
+### Features
+
+* **brand:** replace placeholder icons with the Looply loop mark ([2f131e2](https://github.com/kasperiio/looply/commit/2f131e24b0214c566eb75ae5cb0771e6efdd3c26))
+
 ## [1.8.1](https://github.com/kasperiio/looply/compare/v1.8.0...v1.8.1) (2026-08-26)
 
 
