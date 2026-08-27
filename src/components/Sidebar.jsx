@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
 import { MIN_DISTANCE_KM, maxDistanceKm } from '../constants/distance.js';
+import LooplyMark from './LooplyMark.jsx';
 import Toggle from './Toggle.jsx';
 import OptionGroup from './OptionGroup.jsx';
 import StartPointSearch from './StartPointSearch.jsx';
@@ -48,7 +49,8 @@ export default function Sidebar({
 }) {
   return (
     <div className="flex flex-col h-full p-4 gap-4 overflow-y-auto">
-      <div className="flex items-center gap-2 pt-1">
+      <div className="flex items-center gap-2.5 pt-1">
+        <LooplyMark size={28} className="text-lime-400 shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="text-white font-bold text-xl tracking-tight leading-none">Looply</h1>
           <p className="text-[10px] text-gray-500 mt-1">v{import.meta.env.VITE_APP_VERSION}</p>
