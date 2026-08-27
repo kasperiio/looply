@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/kasperiio/looply/compare/v1.9.0...v1.9.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* **map:** rebuild release artifacts with the CARTO basemap key ([9aace5a](https://github.com/kasperiio/looply/commit/9aace5a79245abc7aca38193b4aa2986d291baf4))
+
 ## [1.9.0](https://github.com/kasperiio/looply/compare/v1.8.1...v1.9.0) (2026-08-27)
 
 
