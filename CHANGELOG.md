@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.0](https://github.com/kasperiio/looply/compare/v1.9.1...v1.10.0) (2026-09-27)
+
+
+### Features
+
+* quieter, greener routes; touch-friendly distance control; calmer search ([d5b949f](https://github.com/kasperiio/looply/commit/d5b949f68b218046d21d7973b6dbd30dee67ddc0))
+* reverse route direction and show direction arrows ([651f4fe](https://github.com/kasperiio/looply/commit/651f4fe4ef963c95a3e0a51e54a806c8a758eb8c))
+
 ## [1.9.1](https://github.com/kasperiio/looply/compare/v1.9.0...v1.9.1) (2026-08-27)
 
 
