@@ -20,6 +20,22 @@ export const startIcon = L.divIcon({
   iconAnchor: [8, 8],
 });
 
+/**
+ * Direction-of-travel chevron, rotated to the route's bearing (0 = north).
+ * Dark-outlined so it reads on both the lime paved and amber unpaved lines.
+ */
+export function directionIcon(bearing) {
+  return L.divIcon({
+    html: `<svg width="14" height="14" viewBox="0 0 14 14" style="transform:rotate(${Math.round(bearing)}deg)">
+      <path d="M3 10 L7 4 L11 10" fill="none" stroke="#030712" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 10 L7 4 L11 10" fill="none" stroke="#f9fafb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`,
+    className: '',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
+
 export const waypointIcon = L.divIcon({
   html: `<div style="
     width:12px;height:12px;border-radius:50%;

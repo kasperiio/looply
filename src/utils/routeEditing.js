@@ -1,4 +1,4 @@
-import { haversineKm } from './geo.js';
+import { calcAscentM, haversineKm } from './geo.js';
 
 function nearestRoutePointIndex(routePoints, lat, lng) {
   let bestIdx = 0;
@@ -24,6 +24,27 @@ export function insertWaypointByRouteOrder(route, newWaypoint) {
 
   if (insertAt === -1) return [...existing, newWaypoint];
   return [...existing.slice(0, insertAt), newWaypoint, ...existing.slice(insertAt)];
+}
+
+/**
+ * The same loop run the other way. Geometry, surface segments and edit
+ * handles are flipped in place — no routing request, so the loop cannot
+ * change shape. A closed loop climbs what it descends, so ascent barely
+ * moves, but it is recomputed from the flipped points so the figure always
+ * matches the exported GPX. Only valid where one-way rules don't apply (on
+ * foot); a ride has to be re-routed instead.
+ */
+export function reverseRoute(route) {
+  const points = [...route.points].reverse();
+  return {
+    ...route,
+    points,
+    ascent: calcAscentM(points),
+    segments: [...(route.segments ?? [])]
+      .reverse()
+      .map((seg) => ({ ...seg, points: [...seg.points].reverse() })),
+    waypoints: [...(route.waypoints ?? [])].reverse(),
+  };
 }
 
 /**

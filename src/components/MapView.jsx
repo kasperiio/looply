@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import {
   ClickHandler,
@@ -33,12 +34,17 @@ export default function MapView({
 }) {
   const hasRoute = routePoints && routePoints.length > 1;
 
-  const drawSegments =
-    segments && segments.length > 0
-      ? segments
-      : hasRoute
-        ? [{ points: routePoints, surface: 'paved' }]
-        : [];
+  // Memoized: hovering the elevation chart re-renders the map many times a
+  // second, and the direction arrows derived from this are not free.
+  const drawSegments = useMemo(
+    () =>
+      segments && segments.length > 0
+        ? segments
+        : hasRoute
+          ? [{ points: routePoints, surface: 'paved' }]
+          : [],
+    [segments, routePoints, hasRoute]
+  );
 
   return (
     <MapContainer

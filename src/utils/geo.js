@@ -12,6 +12,52 @@ export function haversineKm([lat1, lng1], [lat2, lng2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Initial bearing in degrees from point A to point B. */
+export function bearingDeg([lat1, lng1], [lat2, lng2]) {
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const lambda1 = (lng1 * Math.PI) / 180;
+  const lambda2 = (lng2 * Math.PI) / 180;
+  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
+  const x =
+    Math.cos(phi1) * Math.sin(phi2) -
+    Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+/**
+ * `count` evenly spaced positions along a route, by distance, each with the
+ * bearing of travel there — where to draw direction-of-travel arrows. The
+ * positions sit at the middle of equal slices, so none lands on the start.
+ * @returns {{ lat: number, lng: number, bearing: number }[]}
+ */
+export function markersAlongRoute(points, count) {
+  if (!Array.isArray(points) || points.length < 2 || count < 1) return [];
+  const cumulative = [0];
+  for (let i = 1; i < points.length; i++) {
+    cumulative.push(cumulative[i - 1] + haversineKm(points[i - 1], points[i]));
+  }
+  const total = cumulative[cumulative.length - 1];
+  if (total <= 0) return [];
+
+  const markers = [];
+  let seg = 1;
+  for (let k = 0; k < count; k++) {
+    const target = ((k + 0.5) / count) * total;
+    while (seg < points.length - 1 && cumulative[seg] < target) seg += 1;
+    const from = points[seg - 1];
+    const to = points[seg];
+    const span = cumulative[seg] - cumulative[seg - 1];
+    const t = span > 0 ? (target - cumulative[seg - 1]) / span : 0;
+    markers.push({
+      lat: from[0] + (to[0] - from[0]) * t,
+      lng: from[1] + (to[1] - from[1]) * t,
+      bearing: bearingDeg([from[0], from[1]], [to[0], to[1]]),
+    });
+  }
+  return markers;
+}
+
 export function calcRouteDistanceKm(points) {
   let d = 0;
   for (let i = 1; i < points.length; i++) {

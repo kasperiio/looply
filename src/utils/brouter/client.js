@@ -20,6 +20,9 @@ export function isRateLimited(err) {
   return err?.status === 403 || err?.status === 429;
 }
 
+/** What to tell the user when rate-limited: the location is not the problem. */
+export const SERVER_BUSY_MESSAGE = 'The routing server is busy right now. Please try again in a minute.';
+
 /** An unknown/expired uploaded profile — the one case a re-upload fixes. */
 function isStaleProfileError(err) {
   return err?.status === 500;

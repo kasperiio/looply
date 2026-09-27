@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { haversineKm, calcRouteDistanceKm, calcAscentM } from './geo.js';
+import { haversineKm, calcRouteDistanceKm, calcAscentM, markersAlongRoute } from './geo.js';
 
 describe('haversineKm', () => {
   it('is zero for identical points', () => {
@@ -117,5 +117,25 @@ describe('calcAscentM', () => {
     const mixed = [[60, 24], [60.001, 24, 10], [60.002, 24]];
     expect(Number.isFinite(calcAscentM(mixed))).toBe(true);
     expect(calcAscentM(mixed)).toBeCloseTo(10, 5);
+  });
+});
+
+describe('markersAlongRoute', () => {
+  it('returns nothing for degenerate input', () => {
+    expect(markersAlongRoute([], 4)).toEqual([]);
+    expect(markersAlongRoute([[60, 24]], 4)).toEqual([]);
+    expect(markersAlongRoute([[60, 24], [60.01, 24]], 0)).toEqual([]);
+  });
+
+  it('spaces markers evenly by distance, mid-slice, with the travel bearing', () => {
+    // North 1.1 km, then east. Densely sampled on the first leg only, so
+    // index-based spacing would bunch every marker onto it.
+    const north = Array.from({ length: 50 }, (_, i) => [60 + i * 0.0002, 24]);
+    const points = [...north, [60.0098, 24.04]];
+    const markers = markersAlongRoute(points, 2);
+    expect(markers).toHaveLength(2);
+    expect(markers[0].bearing).toBeCloseTo(0, 0);
+    expect(markers[1].bearing).toBeGreaterThan(80);
+    expect(markers[1].bearing).toBeLessThan(100);
   });
 });

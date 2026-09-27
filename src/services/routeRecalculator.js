@@ -1,4 +1,4 @@
-import { fetchRoute } from '../utils/brouter.js';
+import { SERVER_BUSY_MESSAGE, fetchRoute, isRateLimited } from '../utils/brouter.js';
 import { withEditableWaypoints } from '../utils/routeEditing.js';
 import { isFinitePoint } from '../utils/urlState.js';
 
@@ -33,6 +33,7 @@ export async function recalcRoute({
     const route = await fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, scenic });
     return { route: withEditableWaypoints(route) };
   } catch (e) {
+    if (isRateLimited(e)) return { error: SERVER_BUSY_MESSAGE };
     const msg = e?.message
       ? `Could not update route: ${e.message}`
       : 'Could not update route with this waypoint.';

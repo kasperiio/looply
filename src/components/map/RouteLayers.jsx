@@ -1,6 +1,13 @@
+import { useMemo } from 'react';
 import { Polyline, Marker, CircleMarker } from 'react-leaflet';
+import { calcRouteDistanceKm, markersAlongRoute } from '../../utils/geo.js';
 import { SURFACE_COLOR } from '../../constants/surface.js';
-import { startIcon, waypointIcon } from './icons.js';
+import { directionIcon, startIcon, waypointIcon } from './icons.js';
+
+// About one arrow per km, within limits that keep a 2 km loop readable and a
+// 100 km ride from turning into a dotted line.
+const MIN_ARROWS = 4;
+const MAX_ARROWS = 14;
 
 export default function RouteLayers({
   drawSegments,
@@ -11,6 +18,12 @@ export default function RouteLayers({
   onWaypointDrag,
   onRouteDoubleClick,
 }) {
+  const arrows = useMemo(() => {
+    const points = drawSegments.flatMap((s) => s.points);
+    const count = Math.min(MAX_ARROWS, Math.max(MIN_ARROWS, Math.round(calcRouteDistanceKm(points))));
+    return markersAlongRoute(points, count).map((m) => ({ ...m, icon: directionIcon(m.bearing) }));
+  }, [drawSegments]);
+
   return (
     <>
       {/* Loops the search has found so far. Faint and inert on purpose: they
@@ -51,6 +64,16 @@ export default function RouteLayers({
               onRouteDoubleClick?.(e.latlng.lat, e.latlng.lng);
             },
           }}
+        />
+      ))}
+
+      {arrows.map(({ lat, lng, icon }, i) => (
+        <Marker
+          key={`dir-${i}`}
+          position={[lat, lng]}
+          icon={icon}
+          interactive={false}
+          keyboard={false}
         />
       ))}
 

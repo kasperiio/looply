@@ -7,7 +7,7 @@ import {
   pointAlongBearing,
   snapToTrails,
 } from '../utils/circularRoute.js';
-import { fetchRoute, isAbortError, isRateLimited } from '../utils/brouter.js';
+import { SERVER_BUSY_MESSAGE, fetchRoute, isAbortError, isRateLimited } from '../utils/brouter.js';
 import { withEditableWaypoints } from '../utils/routeEditing.js';
 import {
   requestKey,
@@ -359,7 +359,7 @@ export async function generateRoutes({
     // off moving a perfectly good start point.
     return {
       routes: [],
-      error: 'The routing server is busy right now. Please try again in a minute.',
+      error: SERVER_BUSY_MESSAGE,
     };
   }
 

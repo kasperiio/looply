@@ -14,7 +14,7 @@ import { downloadGpx } from './utils/gpxExport';
 import { readUrlParams, writeUrlParams } from './utils/urlState';
 import { warmupProfile } from './utils/brouter';
 import { initServiceWorker } from './utils/swUpdate';
-import { insertWaypointByRouteOrder } from './utils/routeEditing';
+import { insertWaypointByRouteOrder, reverseRoute } from './utils/routeEditing';
 import { requestPosition } from './utils/geolocate.js';
 import { clearRoutes as clearStoredRoutes, loadRoutes, routeSetSignature, saveRoutes } from './utils/routeStorage.js';
 import { clampDistanceKm } from './constants/distance.js';
@@ -348,6 +348,19 @@ export default function App() {
     [routes.length]
   );
 
+  const handleReverse = useCallback(() => {
+    if (!currentRoute) return;
+    if (mode === 'running') {
+      // On foot one-way streets don't apply, so the loop is flipped exactly
+      // and instantly rather than re-routed into a possibly different shape.
+      setRoutes((prev) => prev.map((r, i) => (i === routeIdx ? reverseRoute(r) : r)));
+      return;
+    }
+    // A ride can't simply be flipped — it would send the rider the wrong way
+    // down one-way streets. Re-route through the same handles in reverse.
+    recalcRouteWithWaypoints([...(currentRoute.waypoints ?? [])].reverse());
+  }, [currentRoute, mode, routeIdx, recalcRouteWithWaypoints]);
+
   const handleExportGpx = useCallback(() => {
     if (!currentRoute) return;
     downloadGpx(currentRoute.points, `looply-${distance}km`);
@@ -506,6 +519,7 @@ export default function App() {
               routeCount={routes.length}
               onPrev={handlePrevRoute}
               onNext={handleNextRoute}
+              onReverse={handleReverse}
               onExportGpx={handleExportGpx}
               onClear={handleClearRoutes}
             />

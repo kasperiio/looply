@@ -23,7 +23,9 @@
  *   R = targetKm / (detour × n × 2 × sin(π/n))
  */
 
-import { haversineKm as haversineKmGeo } from './geo.js';
+import { bearingDeg, haversineKm as haversineKmGeo } from './geo.js';
+
+export { bearingDeg };
 
 const DEG_PER_KM   = 1 / 111.32; // approx degrees latitude per km
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
@@ -51,19 +53,6 @@ function offsetPoint(lat, lng, dxKm, dyKm) {
   const dLat = dyKm * DEG_PER_KM;
   const dLng = dxKm * DEG_PER_KM / Math.cos((lat * Math.PI) / 180);
   return [lat + dLat, lng + dLng];
-}
-
-/** Initial bearing in degrees from point A to point B. */
-export function bearingDeg([lat1, lng1], [lat2, lng2]) {
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const lambda1 = (lng1 * Math.PI) / 180;
-  const lambda2 = (lng2 * Math.PI) / 180;
-  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
-  const x =
-    Math.cos(phi1) * Math.sin(phi2) -
-    Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 /** Project a point from [lat,lng] along a bearing for distanceKm. */

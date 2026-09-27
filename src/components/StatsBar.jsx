@@ -1,4 +1,4 @@
-import { Route, TrendingUp, ChevronLeft, ChevronRight, Download, Trash2, Layers } from 'lucide-react';
+import { Route, TrendingUp, ChevronLeft, ChevronRight, Download, Trash2, Layers, ArrowRightLeft } from 'lucide-react';
 
 function StatCard({ icon: Icon, label, value, accent, className = '' }) {
   return (
@@ -65,14 +65,14 @@ function surfaceSummary(surface) {
 export default function StatsBar({
   distance, ascent, surface,
   routeIdx, routeCount, onPrev, onNext,
-  onExportGpx, onClear,
+  onReverse, onExportGpx, onClear,
 }) {
   const hasData = distance > 0;
   const surfaceText = surfaceSummary(surface);
 
   return (
     <div className="space-y-1.5">
-      <div className="flex gap-2">
+      <div className="flex gap-1.5 sm:gap-2">
         <StatCard
           icon={Route}
           label="Distance"
@@ -104,10 +104,19 @@ export default function StatsBar({
         <div className="flex items-stretch gap-1.5 shrink-0">
           <button
             type="button"
+            onClick={onReverse}
+            title="Run this loop the other way"
+            aria-label="Reverse route direction"
+            className="flex items-center px-2 sm:px-3 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:border-lime-400/50 hover:text-lime-300 text-xs font-medium transition-all"
+          >
+            <ArrowRightLeft size={13} />
+          </button>
+          <button
+            type="button"
             onClick={onExportGpx}
             title="Download GPX of this route"
             aria-label="Download GPX of this route"
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:border-lime-400/50 hover:text-lime-300 text-xs font-medium transition-all"
+            className="flex items-center gap-1.5 px-2 sm:px-3 rounded-lg border border-gray-700 bg-gray-900 text-gray-300 hover:border-lime-400/50 hover:text-lime-300 text-xs font-medium transition-all"
           >
             <Download size={13} />
             <span className="hidden md:inline">GPX</span>
@@ -117,7 +126,7 @@ export default function StatsBar({
             onClick={onClear}
             title="Clear route"
             aria-label="Clear route"
-            className="flex items-center px-2.5 sm:px-3 rounded-lg border border-gray-800 bg-gray-900 text-gray-500 hover:border-red-400/50 hover:text-red-300 text-xs font-medium transition-all"
+            className="flex items-center px-2 sm:px-3 rounded-lg border border-gray-800 bg-gray-900 text-gray-500 hover:border-red-400/50 hover:text-red-300 text-xs font-medium transition-all"
           >
             <Trash2 size={13} />
           </button>

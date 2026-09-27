@@ -3,6 +3,7 @@ import {
   insertWaypointByRouteOrder,
   scatterWaypointsAlongRoute,
   withEditableWaypoints,
+  reverseRoute,
 } from './routeEditing.js';
 
 /** 101 points running north; index i sits at lat 60 + i/1000. */
@@ -115,5 +116,45 @@ describe('insertWaypointByRouteOrder', () => {
     const existing = [at(20), at(60)];
     insertWaypointByRouteOrder(route(existing), at(40));
     expect(existing).toHaveLength(2);
+  });
+});
+
+describe('reverseRoute', () => {
+  // Climbs 20 m gently over the first leg, drops it steeply on the way back.
+  const points = [[60, 24, 0], [60.001, 24, 5], [60.002, 24, 10], [60.003, 24, 15], [60.004, 24, 20], [60.004, 24.001, 0]];
+  const route = {
+    distance: 1,
+    ascent: 20,
+    points,
+    segments: [
+      { surface: 'paved', points: points.slice(0, 3) },
+      { surface: 'unpaved', points: points.slice(2) },
+    ],
+    waypoints: [{ lat: 60.001, lng: 24 }, { lat: 60.004, lng: 24 }],
+    scenery: { quiet: 0.9, green: 0.5 },
+  };
+  const reversed = reverseRoute(route);
+
+  it('runs the same points the other way', () => {
+    expect(reversed.points).toEqual([...points].reverse());
+    expect(reversed.waypoints).toEqual([{ lat: 60.004, lng: 24 }, { lat: 60.001, lng: 24 }]);
+  });
+
+  it('keeps segments contiguous in the new order', () => {
+    expect(reversed.segments.map((s) => s.surface)).toEqual(['unpaved', 'paved']);
+    expect(reversed.segments[0].points[0]).toEqual(points.at(-1));
+    expect(reversed.segments.at(-1).points.at(-1)).toEqual(points[0]);
+  });
+
+  it('recomputes ascent from the flipped points', () => {
+    expect(reversed.ascent).toBe(20);
+    expect(reverseRoute({ ...route, points: points.slice(0, 5) }).ascent).toBe(0);
+  });
+
+  it('does not mutate the original and keeps direction-free stats', () => {
+    expect(route.points[0]).toEqual([60, 24, 0]);
+    expect(reversed.distance).toBe(1);
+    expect(reversed.scenery).toBe(route.scenery);
+    expect(reverseRoute(reversed).points).toEqual(points);
   });
 });
