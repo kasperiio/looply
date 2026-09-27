@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   backtrackFraction,
+  mergeKeepingViewed,
   requestKey,
   routeSignature,
   sortRoutesByPreferences,
@@ -74,23 +75,24 @@ describe('requestKey', () => {
   const wps = [[60.17, 24.94], [60.2, 25.0], [60.15, 24.8]];
 
   it('is stable for identical inputs', () => {
-    expect(requestKey(wps, 'running', 'any', false, 50, 0))
-      .toBe(requestKey(wps, 'running', 'any', false, 50, 0));
+    expect(requestKey(wps, 'running', 'any', false, 50, true, 0))
+      .toBe(requestKey(wps, 'running', 'any', false, 50, true, 0));
   });
 
   it('varies with every routing input that changes the result', () => {
-    const base = requestKey(wps, 'running', 'any', false, 50, 0);
-    expect(requestKey(wps, 'cycling:road', 'any', false, 50, 0)).not.toBe(base);
-    expect(requestKey(wps, 'running', 'trail', false, 50, 0)).not.toBe(base);
-    expect(requestKey(wps, 'running', 'any', true, 50, 0)).not.toBe(base);
-    expect(requestKey(wps, 'running', 'any', false, 80, 0)).not.toBe(base);
-    expect(requestKey(wps, 'running', 'any', false, 50, 1)).not.toBe(base);
-    expect(requestKey([...wps].reverse(), 'running', 'any', false, 50, 0)).not.toBe(base);
+    const base = requestKey(wps, 'running', 'any', false, 50, true, 0);
+    expect(requestKey(wps, 'cycling:road', 'any', false, 50, true, 0)).not.toBe(base);
+    expect(requestKey(wps, 'running', 'trail', false, 50, true, 0)).not.toBe(base);
+    expect(requestKey(wps, 'running', 'any', true, 50, true, 0)).not.toBe(base);
+    expect(requestKey(wps, 'running', 'any', false, 80, true, 0)).not.toBe(base);
+    expect(requestKey(wps, 'running', 'any', false, 50, true, 1)).not.toBe(base);
+    expect(requestKey(wps, 'running', 'any', false, 50, false, 0)).not.toBe(base);
+    expect(requestKey([...wps].reverse(), 'running', 'any', false, 50, true, 0)).not.toBe(base);
   });
 
   it('defaults alternativeidx so a bare call is cacheable', () => {
-    expect(requestKey(wps, 'running', 'any', false, 50))
-      .toBe(requestKey(wps, 'running', 'any', false, 50, 0));
+    expect(requestKey(wps, 'running', 'any', false, 50, true))
+      .toBe(requestKey(wps, 'running', 'any', false, 50, true, 0));
   });
 });
 
@@ -183,10 +185,68 @@ describe('sortRoutesByPreferences', () => {
     expect(honoured[0]).toBe(near);
   });
 
+  it('treats every distance inside the on-target band as equally good', () => {
+    // 10.6 km is inside the 8% band of a 10 km target, so the greener route
+    // wins even though the other one is nearer the exact number.
+    const exact = route({ distance: 10.05, scenery: { quiet: 0.5, green: 0.1 } });
+    const scenic = route({ distance: 10.6, scenery: { quiet: 1, green: 0.8 } });
+    const ranked = sortRoutesByPreferences([exact, scenic], opts({ preferScenery: true }));
+    expect(ranked[0]).toBe(scenic);
+  });
+
+  it('expresses no terrain preference at the slider midpoint', () => {
+    const flat = route({ ascent: 20 });
+    const hilly = route({ ascent: 300 });
+    expect(sortRoutesByPreferences([flat, hilly], opts())[0]).toBe(flat);
+    expect(sortRoutesByPreferences([hilly, flat], opts())[0]).toBe(hilly);
+  });
+
+  it('prefers quiet, green routes only when asked to', () => {
+    const noisy = route({ scenery: { quiet: 0.4, green: 0.1 } });
+    const scenic = route({ scenery: { quiet: 0.95, green: 0.7 } });
+    expect(sortRoutesByPreferences([noisy, scenic], opts({ preferScenery: true }))[0]).toBe(scenic);
+    expect(sortRoutesByPreferences([noisy, scenic], opts())[0]).toBe(noisy);
+  });
+
+  it('scores unknown scenery as neutral rather than worst', () => {
+    const unknown = route({ scenery: null });
+    const noisy = route({ scenery: { quiet: 0.1, green: 0 } });
+    expect(sortRoutesByPreferences([noisy, unknown], opts({ preferScenery: true }))[0]).toBe(unknown);
+  });
+
+  it('lists a different corridor before a near-duplicate of the best route', () => {
+    const shift = (pts, dLng) => pts.map(([lat, lng, ele]) => [lat, lng + dLng, ele]);
+    const best = route({ distance: 10 });
+    const duplicate = route({ distance: 10.9 });           // same geometry, slightly worse
+    const elsewhere = route({ distance: 11.1, points: shift(line(400), 0.01) });
+    const ranked = sortRoutesByPreferences([best, duplicate, elsewhere], opts());
+    expect(ranked).toEqual([best, elsewhere, duplicate]);
+  });
+
   it('breaks a score tie on distance error', () => {
     const closer = route({ distance: 10.1 });
     const looser = route({ distance: 9.8 });
     const ranked = sortRoutesByPreferences([looser, closer], opts());
     expect(ranked[0]).toBe(closer);
+  });
+});
+
+describe('mergeKeepingViewed', () => {
+  const r = (distance) => ({ distance, points: [[60, 24, 0], [60.01, 24, 0], [60, 24, 0]] });
+  const a = r(5.1);
+  const b = r(5.2);
+  const c = r(5.3);
+
+  it('takes the new list as-is when nothing is being viewed', () => {
+    expect(mergeKeepingViewed([b, a], null)).toEqual({ routes: [b, a], routeIdx: 0 });
+  });
+
+  it('follows the viewed route to its new position', () => {
+    expect(mergeKeepingViewed([c, b, a], a)).toEqual({ routes: [c, b, a], routeIdx: 2 });
+  });
+
+  it('keeps a viewed route the new ranking dropped, in front, within the cap', () => {
+    const merged = mergeKeepingViewed([b, c], a, 2);
+    expect(merged).toEqual({ routes: [a, b], routeIdx: 0 });
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseGeoJson } from './parseGeoJson.js';
+import { parseGeoJson, parseScenery } from './parseGeoJson.js';
 import { haversineKm } from '../geo.js';
 
 const HEADER = ['Longitude', 'Latitude', 'Distance', 'WayTags'];
@@ -199,5 +199,28 @@ describe('parseGeoJson', () => {
       expect(surface.paved).toBeCloseTo(0.75, 5);
       expect(surface.unpaved).toBeCloseTo(0.25, 5);
     });
+  });
+});
+
+describe('parseScenery', () => {
+  const HDR = ['Longitude', 'Latitude', 'Elevation', 'Distance', 'CostPerKm', 'WayTags'];
+  const row = (meters, tags) => ['0', '0', '0', String(meters), '1000', tags];
+
+  it('returns null when no segment carries an estimate tag', () => {
+    // The standard fallback profiles never reference these tags, so BRouter
+    // never echoes them — absence must not read as "perfectly quiet".
+    expect(parseScenery([HDR, row(100, 'highway=footway')])).toBeNull();
+    expect(parseScenery(undefined)).toBeNull();
+  });
+
+  it('measures quiet and green shares by distance', () => {
+    const messages = [
+      HDR,
+      row(300, 'highway=cycleway estimated_noise_class=5 estimated_forest_class=1'),
+      row(700, 'highway=path estimated_forest_class=6'),
+    ];
+    const scenery = parseScenery(messages);
+    expect(scenery.quiet).toBeCloseTo(0.7);
+    expect(scenery.green).toBeCloseTo(0.7);
   });
 });

@@ -17,6 +17,21 @@ export function routeSignature(route) {
   ].join('|');
 }
 
+/**
+ * Merge a newer ranked list into what is on screen without changing the route
+ * the user is looking at. Late candidates may still reorder everything else,
+ * but the viewed loop keeps its geometry and the pager index follows it — or,
+ * if the new list dropped it, it is kept in front rather than swapped out.
+ * @returns {{ routes: object[], routeIdx: number }}
+ */
+export function mergeKeepingViewed(nextRoutes, viewed, maxRoutes = nextRoutes.length) {
+  if (!viewed) return { routes: nextRoutes, routeIdx: 0 };
+  const sig = routeSignature(viewed);
+  const idx = nextRoutes.findIndex((r) => routeSignature(r) === sig);
+  if (idx >= 0) return { routes: nextRoutes, routeIdx: idx };
+  return { routes: [viewed, ...nextRoutes].slice(0, Math.max(maxRoutes, 1)), routeIdx: 0 };
+}
+
 const GRID_CELL_KM = 0.025;
 // Cell re-entries closer than this (in cell-sequence steps) are boundary
 // jitter, not backtracking.
@@ -99,6 +114,11 @@ const HILLY_ASCENT_M_PER_KM = 25;
 // Candidates further off target than this fraction are dropped before
 // scoring (unless that would leave fewer than two).
 const DISTANCE_GATE = 0.25;
+// Within this band a route counts as on target. Nobody running "5 km" cares
+// whether it is 5.1 or 5.4, and scoring that difference linearly let a loop
+// through a motorway interchange beat a forest loop on 300 m alone.
+const DISTANCE_OK = 0.08;
+const DISTANCE_OK_MIN_KM = 0.3;
 
 /**
  * Score candidates on an absolute 0–1 scale per criterion and sort by the
@@ -113,6 +133,7 @@ export function sortRoutesByPreferences(routes, {
   elevationBias,
   areaTarget = null,
   prioritizeArea = false,
+  preferScenery = false,
 }) {
   if (routes.length <= 1) return routes;
 
@@ -122,6 +143,7 @@ export function sortRoutesByPreferences(routes, {
   );
   const pool = withinGate.length >= 2 ? withinGate : routes;
 
+  const okKm = Math.min(gateKm, Math.max(DISTANCE_OK_MIN_KM, targetDistanceKm * DISTANCE_OK));
   const terrainTarget = elevationBias / 100;
   const useArea = prioritizeArea && areaTarget != null;
 
@@ -129,14 +151,19 @@ export function sortRoutesByPreferences(routes, {
     distance: 1,
     loop: 1.2,
     surface: surfacePref === 'any' && !wellLit ? 0.5 : 1,
-    terrain: 0.6,
+    // The slider's midpoint ("Mixed") expresses no preference, so terrain only
+    // counts as the user pushes toward Flat or Hilly. Otherwise the midpoint
+    // targets a specific m/km that flat regions never reach, and every
+    // candidate there loses points for being flat.
+    terrain: 0.6 * Math.abs(terrainTarget - 0.5) * 2,
+    scenery: preferScenery ? 1 : 0,
     area: useArea ? 2 : 0,
   };
 
-  return pool
+  const scored = pool
     .map((route) => {
-      const distanceScore =
-        1 - Math.min(1, Math.abs(route.distance - targetDistanceKm) / gateKm);
+      const offKm = Math.max(0, Math.abs(route.distance - targetDistanceKm) - okKm);
+      const distanceScore = 1 - Math.min(1, offKm / Math.max(gateKm - okKm, 0.01));
       const hilliness = Math.min(
         1,
         route.ascent / Math.max(route.distance, 0.1) / HILLY_ASCENT_M_PER_KM
@@ -145,6 +172,10 @@ export function sortRoutesByPreferences(routes, {
       const surfaceScore = surfaceFitness(route, surfacePref, wellLit);
       // 0.5 backtrack (pure out-and-back) → 0; clean loop → 1.
       const loopScore = 1 - Math.min(1, backtrackFraction(route.points) / 0.5);
+      // Unknown scenery (fallback profile) scores neutral rather than bad.
+      const sceneryScore = route.scenery
+        ? 0.6 * route.scenery.quiet + 0.4 * route.scenery.green
+        : 0.5;
       const areaKm = useArea ? routeDistanceToPointKm(route, areaTarget) : 0;
       const areaScore = useArea
         ? 1 - Math.min(1, areaKm / Math.max(targetDistanceKm / 3, 0.5))
@@ -157,17 +188,62 @@ export function sortRoutesByPreferences(routes, {
           loopScore * weights.loop +
           surfaceScore * weights.surface +
           terrainScore * weights.terrain +
+          sceneryScore * weights.scenery +
           areaScore * weights.area,
         distanceError: Math.abs(route.distance - targetDistanceKm),
       };
     })
-    .sort((a, b) => b.score - a.score || a.distanceError - b.distanceError)
-    .map(({ route }) => route);
+    .sort((a, b) => b.score - a.score || a.distanceError - b.distanceError);
+
+  return diversify(scored).map(({ route }) => route);
 }
 
-export function requestKey(waypoints, mode, surfacePref, wellLit, elevationBias, alternativeidx = 0) {
+// How much a candidate loses for retracing an already-listed alternative. At
+// 1.5 a route sharing half its length with a better one drops ~0.75 — about a
+// fully off-target distance — so paging shows a different direction before a
+// near-duplicate, but a clearly superior route still survives a small overlap.
+const DIVERSITY_WEIGHT = 1.5;
+
+function routeCells(points) {
+  const cells = new Set();
+  for (const p of points ?? []) cells.add(cellOf(p));
+  return cells;
+}
+
+/**
+ * Greedy re-order: each slot goes to the best remaining candidate after
+ * penalising its overlap with the routes already placed. Pure score order
+ * lists three variants of the same best corridor before anything else, which
+ * makes the alternatives pager useless for choosing where to run.
+ */
+function diversify(scored) {
+  const remaining = scored.map((entry) => ({ ...entry, cells: routeCells(entry.route.points) }));
+  const placed = [];
+  while (remaining.length > 0) {
+    let bestIdx = 0;
+    let bestAdjusted = -Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const { cells, score } = remaining[i];
+      let overlap = 0;
+      for (const prev of placed) {
+        let shared = 0;
+        for (const c of cells) if (prev.cells.has(c)) shared += 1;
+        overlap = Math.max(overlap, shared / Math.max(cells.size, 1));
+      }
+      const adjusted = score - DIVERSITY_WEIGHT * overlap;
+      if (adjusted > bestAdjusted) {
+        bestAdjusted = adjusted;
+        bestIdx = i;
+      }
+    }
+    placed.push(remaining.splice(bestIdx, 1)[0]);
+  }
+  return placed;
+}
+
+export function requestKey(waypoints, mode, surfacePref, wellLit, elevationBias, scenic, alternativeidx = 0) {
   const waypointKey = waypoints
     .map(([lat, lng]) => `${lat.toFixed(6)},${lng.toFixed(6)}`)
     .join('|');
-  return `${waypointKey}__${mode}__${surfacePref}__${wellLit ? '1' : '0'}__${elevationBias}__${alternativeidx}`;
+  return `${waypointKey}__${mode}__${surfacePref}__${wellLit ? '1' : '0'}__${elevationBias}__${scenic ? '1' : '0'}__${alternativeidx}`;
 }

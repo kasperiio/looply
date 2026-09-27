@@ -4,6 +4,7 @@ import {
   DragReporter,
   DisableDoubleClickZoom,
   FlyToBounds,
+  FlyToSearch,
   FlyToStart,
   LocateControl,
 } from './map/controls.jsx';
@@ -21,6 +22,8 @@ export default function MapView({
   routePoints,
   segments,
   waypoints = [],
+  previews = [],
+  searchArea = null,
   hoverPoint,
   onMapClick,
   onMapDrag,
@@ -56,11 +59,13 @@ export default function MapView({
       <DragReporter onMapDrag={onMapDrag} />
       <DisableDoubleClickZoom />
       <FlyToBounds routePoints={routePoints} />
+      <FlyToSearch searchArea={searchArea} />
       <FlyToStart startPoint={startPoint} hasRoute={hasRoute} />
       <LocateControl onMapClick={onMapClick} onError={onLocateError} />
 
       <RouteLayers
         drawSegments={drawSegments}
+        previews={previews}
         waypoints={waypoints}
         hoverPoint={hoverPoint}
         startPoint={startPoint}

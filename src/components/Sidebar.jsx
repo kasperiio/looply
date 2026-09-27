@@ -1,10 +1,10 @@
 import {
-  Zap, Navigation, Bike, Footprints,
-  Sun, MoveHorizontal,
+  Zap, Bike, Footprints,
+  Sun, MoveHorizontal, Trees,
   Loader2, X, Github,
 } from 'lucide-react';
 import { VALID_SURFACE_PREFS } from '../constants/surface.js';
-import { MIN_DISTANCE_KM, maxDistanceKm } from '../constants/distance.js';
+import DistanceControl from './DistanceControl.jsx';
 import LooplyMark from './LooplyMark.jsx';
 import Toggle from './Toggle.jsx';
 import OptionGroup from './OptionGroup.jsx';
@@ -35,6 +35,7 @@ export default function Sidebar({
   bikeType,
   surfacePref,
   wellLit,
+  scenic,
   elevationBias,
   onStartSearch,
   onDistanceChange,
@@ -42,6 +43,7 @@ export default function Sidebar({
   onBikeTypeChange,
   onSurfaceChange,
   onLitToggle,
+  onScenicToggle,
   onElevationChange,
   onGenerate,
   loading,
@@ -82,28 +84,7 @@ export default function Sidebar({
 
       <StartPointSearch startLabel={startLabel} onStartSearch={onStartSearch} />
 
-      <div className="space-y-1.5">
-        <label htmlFor="looply-distance" className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
-          <Navigation size={11} className="text-lime-400" aria-hidden="true" /> Target Distance
-          <span className="ml-auto text-lime-400 font-semibold">{distance} km</span>
-        </label>
-        <input
-          id="looply-distance"
-          type="range"
-          min={MIN_DISTANCE_KM}
-          max={maxDistanceKm(mode)}
-          step={0.5}
-          value={distance}
-          /* Without this a screen reader announces the bare number "10". */
-          aria-valuetext={`${distance} kilometres`}
-          onChange={(e) => onDistanceChange(parseFloat(e.target.value))}
-          className="w-full h-1.5 rounded-full appearance-none bg-gray-800 cursor-pointer"
-        />
-        <div className="flex justify-between text-[10px] text-gray-600">
-          <span>{MIN_DISTANCE_KM} km</span>
-          <span>{maxDistanceKm(mode)} km</span>
-        </div>
-      </div>
+      <DistanceControl distance={distance} mode={mode} onChange={onDistanceChange} />
 
       <div className="space-y-1.5">
         <span className="text-xs font-medium text-gray-400">Activity</span>
@@ -149,6 +130,16 @@ export default function Sidebar({
       </div>
 
       <div className="space-y-1.5">
+        <Toggle
+          label="Quiet & Green"
+          icon={Trees}
+          checked={scenic}
+          onChange={onScenicToggle}
+          description="Parks & forests over busy roads"
+        />
+      </div>
+
+      <div className="space-y-1.5">
         <label htmlFor="looply-terrain" className="text-xs font-medium text-gray-400 flex items-center gap-1.5">
           <MoveHorizontal size={11} className="text-lime-400" aria-hidden="true" /> Terrain
           <span className="ml-auto text-gray-500 text-[10px]">{terrainLabel(elevationBias)}</span>
@@ -163,7 +154,7 @@ export default function Sidebar({
           /* "50" means nothing spoken aloud; "Mixed" is the actual setting. */
           aria-valuetext={terrainLabel(elevationBias)}
           onChange={(e) => onElevationChange(parseInt(e.target.value, 10))}
-          className="w-full h-1.5 rounded-full appearance-none bg-gray-800 cursor-pointer"
+          className="looply-range w-full"
         />
         <div className="flex justify-between text-[10px] text-gray-600">
           <span>Flat</span>

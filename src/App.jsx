@@ -8,7 +8,7 @@ import SearchAreaBanner from './components/SearchAreaBanner';
 import MapEmptyHint from './components/MapEmptyHint';
 import MapInteractionHints from './components/MapInteractionHints';
 import RefiningIndicator from './components/RefiningIndicator';
-import { haversineKm } from './utils/circularRoute';
+import { circleRadius, haversineKm } from './utils/circularRoute';
 import { reverseGeocode } from './utils/nominatim';
 import { downloadGpx } from './utils/gpxExport';
 import { readUrlParams, writeUrlParams } from './utils/urlState';
@@ -20,8 +20,13 @@ import { clearRoutes as clearStoredRoutes, loadRoutes, routeSetSignature, saveRo
 import { clampDistanceKm } from './constants/distance.js';
 import { useEdgeSwipe } from './hooks/useEdgeSwipe.js';
 import { generateRoutes } from './services/routeGenerator';
+import { mergeKeepingViewed } from './utils/routeRanking.js';
 import { recalcRoute } from './services/routeRecalculator';
 import { ChevronRight } from 'lucide-react';
+
+// A search normally settles in 2–4 s. Past this, show the best loop so far
+// rather than leave a slow or rate-limited server looking like a hang.
+const EARLY_REVEAL_MS = 8000;
 
 // Recharts is the single biggest thing in the bundle and is only needed once a
 // route exists — which is never, on a first visit that has not generated yet.
@@ -47,6 +52,7 @@ export default function App() {
   const [bikeType, setBikeType] = useState(init.bikeType);
   const [surfacePref, setSurfacePref] = useState(init.surfacePref);
   const [wellLit, setWellLit] = useState(init.wellLit);
+  const [scenic, setScenic] = useState(init.scenic);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showMapHints, setShowMapHints] = useState(() => {
     try {
@@ -74,6 +80,7 @@ export default function App() {
         surfacePref: init.surfacePref,
         wellLit: init.wellLit,
         elevationBias: init.elevationBias,
+        scenic: init.scenic,
       })
     )
   );
@@ -81,6 +88,9 @@ export default function App() {
   const [routes, setRoutes] = useState(restored?.routes ?? []);
   const [routeIdx, setRouteIdx] = useState(restored?.routeIdx ?? 0);
   const currentRoute = routes[routeIdx] ?? null;
+  // Read by an in-flight generation, which must not rely on a stale closure.
+  const currentRouteRef = useRef(null);
+  currentRouteRef.current = currentRoute;
 
   const [hoverPoint, setHoverPoint] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -88,6 +98,11 @@ export default function App() {
   // blocking overlay is right; `refining` means a usable loop is already shown
   // and better candidates are still landing behind it.
   const [refining, setRefining] = useState(false);
+  // Loops found by a search still in progress, drawn faintly on the map. They
+  // stand in for results until the search settles, because publishing each
+  // partial ranking swapped the loop on screen two or three times per search.
+  const [previews, setPreviews] = useState([]);
+  const [searchArea, setSearchArea] = useState(null);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState(null);
 
@@ -98,8 +113,8 @@ export default function App() {
   const generationRef = useRef(0);
   const abortRef = useRef(null);
   const routingParams = useMemo(
-    () => ({ mode, bikeType, surfacePref, wellLit, elevationBias }),
-    [mode, bikeType, surfacePref, wellLit, elevationBias]
+    () => ({ mode, bikeType, surfacePref, wellLit, elevationBias, scenic }),
+    [mode, bikeType, surfacePref, wellLit, elevationBias, scenic]
   );
 
   // Upload the routing profile ahead of the first Generate.
@@ -126,7 +141,7 @@ export default function App() {
   useEffect(() => {
     if (loading || refining) return undefined;
     const signature = routeSetSignature({
-      startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias,
+      startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias, scenic,
     });
     // Nothing on screen is not the same as the user discarding their work:
     // opening the app at a different distance must not delete the set saved
@@ -135,17 +150,17 @@ export default function App() {
     if (routes.length === 0) return undefined;
     const id = setTimeout(() => saveRoutes(signature, routes, routeIdx), 400);
     return () => clearTimeout(id);
-  }, [routes, routeIdx, loading, refining, startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias]);
+  }, [routes, routeIdx, loading, refining, startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias, scenic]);
 
   // Debounced: dragging the distance or terrain slider fires this on every
   // tick, and replaceState is not free. Nothing reads the URL back mid-drag,
   // so it only has to catch up once the user settles.
   useEffect(() => {
     const id = setTimeout(() => {
-      writeUrlParams({ startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias });
+      writeUrlParams({ startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias, scenic });
     }, 250);
     return () => clearTimeout(id);
-  }, [startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias]);
+  }, [startPoint, areaPoint, distance, mode, bikeType, surfacePref, wellLit, elevationBias, scenic]);
 
   const handleMapClick = useCallback(async (lat, lng) => {
     if (currentRoute) return;
@@ -216,6 +231,7 @@ export default function App() {
     setRefining(false);
     setRoutes([]);
     setRouteIdx(0);
+    setPreviews([]);
     setHoverPoint(null);
     setAreaPoint(null);
     setMapDragCenter(null);
@@ -260,6 +276,31 @@ export default function App() {
     setError(null);
     setRoutes([]);
     setRouteIdx(0);
+    setPreviews([]);
+    // A loop's far side lies up to one circle diameter from the start, in
+    // whichever direction the search tries.
+    setSearchArea({ ...startPoint, radiusKm: 2.2 * circleRadius(distance) });
+
+    // Results stay hidden until the search settles. Only if the server is slow
+    // does the best loop so far go on screen early — and from then on, later
+    // candidates never replace the loop being viewed.
+    let latest = [];
+    let revealed = false;
+    const reveal = (list) => {
+      // Whatever the user has paged to since the early reveal, not merely the
+      // loop that was first shown.
+      const merged = mergeKeepingViewed(list, currentRouteRef.current, list.length);
+      setRoutes(merged.routes);
+      setRouteIdx(merged.routeIdx);
+    };
+    const revealTimer = setTimeout(() => {
+      if (!isCurrent() || latest.length === 0) return;
+      revealed = true;
+      reveal(latest);
+      setPreviews([]);
+      setLoading(false);
+      setSidebarOpen(false);
+    }, EARLY_REVEAL_MS);
 
     const result = await generateRoutes({
       startPoint,
@@ -268,24 +309,22 @@ export default function App() {
       prioritizeArea: options?.prioritizeArea === true,
       ...routingParams,
       signal: controller.signal,
-      // Candidates arrive over several seconds; show the best loop found so
-      // far rather than a spinner over an empty map.
       onPartial: (partialRoutes) => {
         if (!isCurrent()) return;
-        setRoutes(partialRoutes);
-        // Something is on the map now — swap the blocking overlay for the
-        // unobtrusive indicator.
-        setLoading(false);
-        setSidebarOpen(false);
+        latest = partialRoutes;
+        if (revealed) reveal(partialRoutes);
+        else setPreviews(partialRoutes.map((r) => r.points));
       },
     });
+    clearTimeout(revealTimer);
 
     if (!isCurrent() || result.aborted) return;
 
+    setPreviews([]);
     if (result.error) {
-      setError(result.error);
+      if (!revealed) setError(result.error);
     } else {
-      setRoutes(result.routes);
+      reveal(result.routes);
       setSidebarOpen(false);
     }
     setLoading(false);
@@ -376,6 +415,7 @@ export default function App() {
           bikeType={bikeType}
           surfacePref={surfacePref}
           wellLit={wellLit}
+          scenic={scenic}
           elevationBias={elevationBias}
           onStartSearch={handleStartSearch}
           onDistanceChange={setDistance}
@@ -383,6 +423,7 @@ export default function App() {
           onBikeTypeChange={setBikeType}
           onSurfaceChange={setSurfacePref}
           onLitToggle={setWellLit}
+          onScenicToggle={setScenic}
           onElevationChange={setElevationBias}
           onGenerate={handleGenerate}
           loading={loading || refining}
@@ -420,6 +461,8 @@ export default function App() {
             routePoints={currentRoute?.points ?? []}
             segments={currentRoute?.segments ?? []}
             waypoints={currentRoute?.waypoints ?? []}
+            previews={previews}
+            searchArea={searchArea}
             hoverPoint={hoverPoint}
             onMapClick={handleMapClick}
             onMapDrag={handleMapDrag}
@@ -436,7 +479,12 @@ export default function App() {
           />
           {mapHintsVisible && <MapInteractionHints onDismiss={handleDismissMapHints} />}
 
-          {loading && <LoadingOverlay />}
+          {loading && previews.length === 0 && <LoadingOverlay />}
+          {loading && previews.length > 0 && (
+            <RefiningIndicator
+              label={`Exploring — ${previews.length} loop${previews.length === 1 ? '' : 's'} found`}
+            />
+          )}
           {!loading && refining && <RefiningIndicator count={routes.length} />}
           {!currentRoute && !loading && (
             <MapEmptyHint

@@ -15,6 +15,7 @@
  *   profile:road_aversion=N   run only — scales car-road surcharge
  *   profile:avoid_unsafe=1    bike only — penalize roads without bike infra
  *   profile:mtb=1             bike only — welcome singletrack & rough tracks
+ *   profile:scenery=N         penalize noisy / treeless ways (0 = off)
  *
  * The lighting preference works because brouter.de's segment data encodes
  * the OSM `lit` tag (see lookups.dat) — standard profiles just never
@@ -22,6 +23,12 @@
  * profile uses to keep runners off fast roads that have no footway; note
  * lookups.dat stores maxspeed only as round decades (60, 70, … 130) and has
  * no `width` lookup at all.
+ *
+ * Scenery rides on brouter.de's precomputed `estimated_noise_class` and
+ * `estimated_forest_class` (1–6, absent = none) — derived from nearby road
+ * traffic and forest/park landuse. OSM itself can't tell a footway beside a
+ * motorway from one through a forest; these classes can, and they only appear
+ * in route messages because the profiles reference them.
  *
  * Measurement trap: `processUnusedTags = false` means BRouter echoes only the
  * tags a profile actually references. Comparing a route against an older
@@ -57,6 +64,30 @@ assign privatepenalty =
   add ( if ( and highway=service service=driveway|parking_aisle|drive-through|emergency_access|parking ) then 4.0 else 0 )
   add ( if ( and highway=service service= ) then 0.6 else 0 )
       ( if access=customers|delivery then 1.5 else 0 )
+
+# Scenery: quiet and green beats loud and bare. Per-class costs follow the
+# standard trekking profile's consider_noise / consider_forest shape at
+# roughly half its strength per unit of scenery — a way beside a motorway
+# (noise 5–6) should lose to a parallel one through the woods, but not force
+# a long detour when it is the only connector. Declared in both profiles;
+# the request strength is calibrated in client.js (SCENERY_STRENGTH).
+assign noisepenalty =
+       if estimated_noise_class=6 then 1.0
+  else if estimated_noise_class=5 then 0.8
+  else if estimated_noise_class=4 then 0.6
+  else if estimated_noise_class=3 then 0.35
+  else if estimated_noise_class=2 then 0.2
+  else if estimated_noise_class=1 then 0.1
+  else 0
+assign noforestpenalty =
+       if estimated_forest_class=6 then 0
+  else if estimated_forest_class=5 then 0.03
+  else if estimated_forest_class=4 then 0.06
+  else if estimated_forest_class=3 then 0.1
+  else if estimated_forest_class=2 then 0.15
+  else if estimated_forest_class=1 then 0.2
+  else 0.25
+assign scenerypenalty = multiply scenery ( add noisepenalty noforestpenalty )
 `;
 
 export const LOOPLY_BIKE_PROFILE = `# Looply cycling profile — derived from BRouter's standard trekking profile,
@@ -77,6 +108,7 @@ assign allow_ferries  = true
 # Without it, prefer_unpaved means gravel style: smooth forest tracks are
 # ideal but technical singletrack is avoided.
 assign mtb = false
+assign scenery = 0
 
 assign consider_elevation = true
 assign downhillcost       = 60
@@ -226,6 +258,8 @@ assign costfactor
 
   add privatepenalty
 
+  add scenerypenalty
+
   add max onewaypenalty accesspenalty
 
   if ( highway=steps ) then ( if allow_steps then 40 else 10000 )
@@ -359,6 +393,9 @@ assign allow_ferries  = true
 # unclassified 1.5, tertiary 1.6, secondary 2.0, primary 2.8, trunk 6.0.
 assign road_aversion  = 1
 
+# Scales the preference for quiet, green ways (see scenerypenalty).
+assign scenery        = 0
+
 assign consider_elevation = true
 assign downhillcost       = 0
 assign downhillcutoff     = 1.5
@@ -449,6 +486,8 @@ assign costfactor
   add surfaceprefpenalty
 
   add privatepenalty
+
+  add scenerypenalty
 
   add accesspenalty
 

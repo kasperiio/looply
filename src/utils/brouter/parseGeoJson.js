@@ -120,6 +120,44 @@ function buildSegments(points, messages) {
   return segments.filter((s) => s.points.length >= 2);
 }
 
+// brouter.de estimate classes run 1–6. At noise ≥4 traffic is plainly
+// audible (the footway beside a ring road); forest ≥3 reads as a wooded or
+// park setting rather than a few street trees.
+const NOISY_CLASS = 4;
+const GREEN_CLASS = 3;
+
+/**
+ * Share of the route's length that is quiet and that is green, from the
+ * estimated_noise_class / estimated_forest_class way tags. Returns null when
+ * no segment carries either tag: the standard fallback profiles don't
+ * reference them, so BRouter never echoes them and absence proves nothing.
+ */
+export function parseScenery(messages) {
+  if (!Array.isArray(messages) || messages.length < 2) return null;
+  const hdr = messages[0];
+  const distIdx = hdr.indexOf('Distance');
+  const tagIdx = hdr.indexOf('WayTags');
+  if (distIdx < 0 || tagIdx < 0) return null;
+
+  let meters = 0;
+  let quietM = 0;
+  let greenM = 0;
+  let tagged = false;
+  for (const row of messages.slice(1)) {
+    const d = parseFloat(row[distIdx]);
+    if (!Number.isFinite(d) || d <= 0) continue;
+    const tags = row[tagIdx] ?? '';
+    const noise = Number(/estimated_noise_class=(\d)/.exec(tags)?.[1] ?? 0);
+    const forest = Number(/estimated_forest_class=(\d)/.exec(tags)?.[1] ?? 0);
+    if (noise || forest) tagged = true;
+    meters += d;
+    if (noise < NOISY_CLASS) quietM += d;
+    if (forest >= GREEN_CLASS) greenM += d;
+  }
+  if (!tagged || meters === 0) return null;
+  return { quiet: quietM / meters, green: greenM / meters };
+}
+
 export function parseGeoJson(geojson) {
   const feature = geojson.features?.[0];
   if (!feature) throw new Error('BRouter returned no route features');
@@ -135,6 +173,7 @@ export function parseGeoJson(geojson) {
   const ascent = calcAscentM(points);
   const surface = parseSurface(props.messages);
   const segments = buildSegments(points, props.messages);
+  const scenery = parseScenery(props.messages);
 
-  return { points, distance, ascent, surface, segments };
+  return { points, distance, ascent, surface, segments, scenery };
 }

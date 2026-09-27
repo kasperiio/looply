@@ -84,6 +84,25 @@ export function FlyToBounds({ routePoints }) {
   return null;
 }
 
+/**
+ * One camera move when a search starts: frame everywhere a loop of this
+ * length could reach, so the candidates being explored are visible as they
+ * appear and the view does not have to chase them.
+ */
+export function FlyToSearch({ searchArea }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!searchArea) return;
+    const { lat, lng, radiusKm } = searchArea;
+    // toBounds extends ±size/2 each way, so the full side is the diameter.
+    const bounds = L.latLng(lat, lng).toBounds(radiusKm * 2000);
+    // fitBounds, not flyToBounds: the fly animation arcs out and back in,
+    // which reads as a jump for a hop this short.
+    map.fitBounds(bounds, { padding: FIT_PADDING, animate: true });
+  }, [searchArea, map]);
+  return null;
+}
+
 export function FlyToStart({ startPoint, hasRoute }) {
   const map = useMap();
   const prev = useRef(null);

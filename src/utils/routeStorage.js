@@ -39,6 +39,7 @@ export function routeSetSignature({
   surfacePref,
   wellLit,
   elevationBias,
+  scenic,
 }) {
   if (!startPoint) return null;
   return [
@@ -52,6 +53,7 @@ export function routeSetSignature({
     surfacePref,
     wellLit ? '1' : '0',
     elevationBias,
+    scenic ? '1' : '0',
   ].join('|');
 }
 

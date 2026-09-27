@@ -14,6 +14,7 @@ export async function recalcRoute({
   surfacePref,
   wellLit,
   elevationBias,
+  scenic,
 }) {
   if (!isFinitePoint(startPoint)) {
     return { error: 'Start point is invalid.' };
@@ -29,7 +30,7 @@ export async function recalcRoute({
   ];
 
   try {
-    const route = await fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias });
+    const route = await fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, scenic });
     return { route: withEditableWaypoints(route) };
   } catch (e) {
     const msg = e?.message

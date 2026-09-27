@@ -30,6 +30,7 @@ const SETTINGS = {
   surfacePref: 'any',
   wellLit: false,
   elevationBias: 50,
+  scenic: true,
 };
 
 const ROUTES = [
@@ -57,6 +58,7 @@ describe('routeSetSignature', () => {
     expect(routeSetSignature({ ...SETTINGS, surfacePref: 'trail' })).not.toBe(base);
     expect(routeSetSignature({ ...SETTINGS, wellLit: true })).not.toBe(base);
     expect(routeSetSignature({ ...SETTINGS, elevationBias: 80 })).not.toBe(base);
+    expect(routeSetSignature({ ...SETTINGS, scenic: !SETTINGS.scenic })).not.toBe(base);
     expect(routeSetSignature({ ...SETTINGS, startPoint: { lat: 60.2, lng: 24.94 } })).not.toBe(base);
     expect(routeSetSignature({ ...SETTINGS, areaPoint: { lat: 60.2, lng: 25.0 } })).not.toBe(base);
   });

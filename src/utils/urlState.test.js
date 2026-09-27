@@ -44,6 +44,7 @@ describe('readUrlParams', () => {
       surfacePref: 'any',
       wellLit: false,
       elevationBias: 50,
+      scenic: true,
     });
   });
 
@@ -109,6 +110,15 @@ describe('readUrlParams', () => {
     setSearch('?lit=1');
     expect(readUrlParams().wellLit).toBe(true);
   });
+
+  it('defaults Quiet & Green on, including for links that predate it', () => {
+    setSearch('');
+    expect(readUrlParams().scenic).toBe(true);
+    setSearch('?lit=1&ele=80');
+    expect(readUrlParams().scenic).toBe(true);
+    setSearch('?scenic=0');
+    expect(readUrlParams().scenic).toBe(false);
+  });
 });
 
 describe('writeUrlParams', () => {
@@ -128,6 +138,7 @@ describe('writeUrlParams', () => {
       surfacePref: 'trail',
       wellLit: true,
       elevationBias: 70,
+      scenic: false,
     });
     const p = read();
     expect(p.get('lat')).toBe('60.170000');
@@ -138,6 +149,7 @@ describe('writeUrlParams', () => {
     expect(p.get('surface')).toBe('trail');
     expect(p.get('lit')).toBe('1');
     expect(p.get('ele')).toBe('70');
+    expect(p.get('scenic')).toBe('0');
   });
 
   it('omits points that are absent or non-finite', () => {

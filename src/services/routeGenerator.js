@@ -111,6 +111,7 @@ export async function generateRoutes({
   surfacePref,
   wellLit,
   elevationBias,
+  scenic = true,
   preferredArea = null,
   prioritizeArea = false,
   signal,
@@ -175,9 +176,9 @@ export async function generateRoutes({
   }
 
   async function fetchCandidate(waypoints, alternativeidx) {
-    const cacheKey = requestKey(waypoints, modeKey, surfacePref, wellLit, elevationBias, alternativeidx);
+    const cacheKey = requestKey(waypoints, modeKey, surfacePref, wellLit, elevationBias, scenic, alternativeidx);
     const route = await cachedFetchRoute(cacheKey, () =>
-      fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, alternativeidx, signal })
+      fetchRoute({ waypoints, mode, bikeType, surfacePref, wellLit, elevationBias, scenic, alternativeidx, signal })
     );
     return withEditableWaypoints(route);
   }
@@ -210,6 +211,7 @@ export async function generateRoutes({
       elevationBias,
       areaTarget,
       prioritizeArea,
+      preferScenery: scenic,
     }).slice(0, MAX_ROUTE_RESULTS);
   };
 
@@ -221,6 +223,12 @@ export async function generateRoutes({
     if (!onPartial || signal?.aborted || found.length === 0) return;
     onPartial(rankRoutes(found));
   };
+
+  // Once the server starts refusing, every further request makes it worse and
+  // none of them succeed. One 403 stops the whole fan-out rather than letting
+  // each of the remaining offsets discover it independently.
+  let rateLimited = false;
+  let aborted = false;
 
   const probeWaypoints = buildWaypoints(distance, BASE_BEARINGS[0]);
   let areaCalibration = 1;
@@ -237,15 +245,11 @@ export async function generateRoutes({
     publish();
   } catch (e) {
     if (isAbortError(e)) return { routes: [], aborted: true };
+    if (isRateLimited(e)) rateLimited = true;
     // Probe failed (island, timeout). Fall back to the global average and let
     // the per-offset chains calibrate themselves as they did before.
   }
 
-  // Once the server starts refusing, every further request makes it worse and
-  // none of them succeed. One 403 stops the whole fan-out rather than letting
-  // each of the remaining offsets discover it independently.
-  let rateLimited = false;
-  let aborted = false;
 
   async function tryBearing(base) {
     const candidates = [];
@@ -349,6 +353,15 @@ export async function generateRoutes({
   // `found` already holds the probe route and every bearing's candidates;
   // rankRoutes dedups.
   const routes = rankRoutes(found);
+
+  if (routes.length === 0 && rateLimited) {
+    // Not the location's fault — saying "no routable path" here sent people
+    // off moving a perfectly good start point.
+    return {
+      routes: [],
+      error: 'The routing server is busy right now. Please try again in a minute.',
+    };
+  }
 
   if (routes.length === 0) {
     return {

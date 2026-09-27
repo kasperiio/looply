@@ -70,6 +70,14 @@ function elevationCosts(elevationBias) {
   };
 }
 
+// profile:scenery sent when Quiet & Green is on. Calibrated over loops in six
+// cities (Espoo, Helsinki, Tampere, Cambridge, Munich, Berlin): 1 cut the
+// noisy (class ≥4) share of 8 km runs from e.g. 52% to 15% (Helsinki) and
+// 23% to 7% (Berlin), and of 30 km road rides from 51% to 27%, for a length
+// change mostly under 5%. 2 added little quiet but up to 17% detour — and the
+// same value suits every activity, so there is no per-mode table.
+const SCENERY_STRENGTH = 1;
+
 // One upload per activity per session serves all setting combinations;
 // per-request behavior comes from profile:<var> overrides.
 const customProfileIds = new Map();
@@ -152,6 +160,7 @@ export async function fetchRoute({
   surfacePref = 'any',
   wellLit = false,
   elevationBias = 50,
+  scenic = true,
   alternativeidx = 0,
   signal,
 }) {
@@ -172,6 +181,7 @@ export async function fetchRoute({
     params.set('profile:uphillcost', String(uphillcost));
     params.set('profile:downhillcost', String(downhillcost));
     if (wellLit) params.set('profile:prefer_lit', '1');
+    params.set('profile:scenery', scenic ? String(SCENERY_STRENGTH) : '0');
 
     if (mode === 'cycling') {
       // discipline decides surface — the surface selector doesn't apply

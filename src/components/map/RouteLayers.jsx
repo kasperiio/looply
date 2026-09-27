@@ -4,6 +4,7 @@ import { startIcon, waypointIcon } from './icons.js';
 
 export default function RouteLayers({
   drawSegments,
+  previews = [],
   waypoints,
   hoverPoint,
   startPoint,
@@ -12,6 +13,16 @@ export default function RouteLayers({
 }) {
   return (
     <>
+      {/* Loops the search has found so far. Faint and inert on purpose: they
+          show progress, not a result — nothing here is clickable or ranked. */}
+      {previews.map((pts, i) => (
+        <Polyline
+          key={`preview-${i}`}
+          positions={pts.map(([lat, lng]) => [lat, lng])}
+          pathOptions={{ color: '#a3e635', weight: 2.5, opacity: 0.35, interactive: false }}
+        />
+      ))}
+
       {drawSegments.map(({ points: pts, surface }, i) => (
         <Polyline
           key={`glow-${i}`}

@@ -86,9 +86,44 @@ html, body, #root {
   color: #a3e635 !important;
 }
 
-/* Range slider accent */
-input[type="range"] {
-  accent-color: #a3e635;
+/* Sliders: a fingertip-sized thumb on a thin track. The input itself is
+   28px tall so the whole band is a touch target, and pan-y hands vertical
+   swipes to the scrolling sidebar instead of nudging the value. */
+.looply-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 28px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.looply-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #1f2937;
+}
+.looply-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: #1f2937;
+}
+.looply-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -9px;
+  border-radius: 9999px;
+  background: #a3e635;
+  border: 3px solid #030712;
+  box-shadow: 0 0 0 1px #a3e635;
+}
+.looply-range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #a3e635;
+  border: 3px solid #030712;
+  box-shadow: 0 0 0 1px #a3e635;
 }
 
 /* Custom scrollbar */

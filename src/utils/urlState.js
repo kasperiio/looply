@@ -52,6 +52,9 @@ export function readUrlParams() {
     bikeType: VALID_BIKE_TYPES.includes(rawBike) ? rawBike : 'road',
     surfacePref: VALID_SURFACE_PREFS.includes(rawSurface) ? rawSurface : 'any',
     wellLit: p.get('lit') === '1',
+    // On unless explicitly turned off, so links from before the setting existed
+    // pick up the better default.
+    scenic: p.get('scenic') !== '0',
     elevationBias: rawElevationBias == null ? DEFAULT_ELEVATION_BIAS : clamp(Math.round(rawElevationBias), 0, 100),
   };
 }
@@ -71,6 +74,7 @@ export function writeUrlParams(state) {
   p.set('bike', state.bikeType);
   p.set('surface', state.surfacePref);
   p.set('lit', state.wellLit ? '1' : '0');
+  p.set('scenic', state.scenic ? '1' : '0');
   p.set('ele', state.elevationBias);
   window.history.replaceState({}, '', `?${p.toString()}`);
 }
